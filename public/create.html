@@ -7,94 +7,96 @@
     set,
   } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBoyDhim2hxgfXuWmqP-8ZbaSies8Y015Y",
-    authDomain: "munchmatch-9e2fe.firebaseapp.com",
-    databaseURL: "https://munchmatch-9e2fe-default-rtdb.firebaseio.com",
-    projectId: "munchmatch-9e2fe",
-    storageBucket: "munchmatch-9e2fe.appspot.com",
-    messagingSenderId: "560563095562",
-    appId: "1:560563095562:web:15e0fd055cbd75b1e8b7f3",
-    measurementId: "G-9YT0LG7CEE",
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-  const database = getDatabase(app);
-
-  function generateCode(length = 6) {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "";
-    for (let i = 0; i < length; i++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return code;
-  }
-
-  async function fetchRestaurantsAndSave(groupCode, filters) {
-    const radiusMiles = parseInt(filters.distance || "5");
-    const radiusMeters = Math.min(radiusMiles * 1609, 40000);
-
-    const requestBody = {
-      location: filters.location,
-      price: filters.price,
-      radius: radiusMeters,
+  document.addEventListener("DOMContentLoaded", () => {
+    const firebaseConfig = {
+      apiKey: "AIzaSyBoyDhim2hxgfXuWmqP-8ZbaSies8Y015Y",
+      authDomain: "munchmatch-9e2fe.firebaseapp.com",
+      databaseURL: "https://munchmatch-9e2fe-default-rtdb.firebaseio.com",
+      projectId: "munchmatch-9e2fe",
+      storageBucket: "munchmatch-9e2fe.appspot.com",
+      messagingSenderId: "560563095562",
+      appId: "1:560563095562:web:15e0fd055cbd75b1e8b7f3",
+      measurementId: "G-9YT0LG7CEE",
     };
 
-    try {
-      console.log("📡 Calling Yelp API with:", requestBody);
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const database = getDatabase(app);
 
-      const response = await fetch(`${window.location.origin}/api/yelp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) throw new Error("Yelp request failed");
-
-      const restaurants = await response.json();
-      console.log("🍽️ Yelp responded with:", restaurants);
-
-      await set(
-        ref(database, "groups/" + groupCode + "/restaurants"),
-        restaurants
-      );
-
-      console.log(`✅ Saved ${restaurants.length} restaurants to Firebase`);
-    } catch (error) {
-      console.error("🔥 Error fetching/storing Yelp data:", error.message);
+    function generateCode(length = 6) {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let code = "";
+      for (let i = 0; i < length; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
     }
-  }
 
-  const form = document.getElementById("groupForm");
-  const result = document.getElementById("groupResult");
-  const groupCodeDisplay = document.getElementById("groupCode");
+    async function fetchRestaurantsAndSave(groupCode, filters) {
+      const radiusMiles = parseInt(filters.distance || "5");
+      const radiusMeters = Math.min(radiusMiles * 1609, 40000);
 
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
+      const requestBody = {
+        location: filters.location,
+        price: filters.price,
+        radius: radiusMeters,
+      };
 
-    const filters = {
-      location: form.location.value,
-      mealtime: form.mealtime.value,
-      distance: form.distance.value,
-      price: form.price.value,
-      groupSize: parseInt(form.groupSize.value),
-    };
+      try {
+        console.log("📡 Calling Yelp API with:", requestBody);
 
-    const groupCode = generateCode();
+        const response = await fetch(`${window.location.origin}/api/yelp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
 
-    set(ref(database, "groups/" + groupCode), {
-      filters: filters,
-      createdAt: new Date().toISOString(),
-    })
-      .then(() => {
-        groupCodeDisplay.textContent = groupCode;
-        result.style.display = "block";
+        if (!response.ok) throw new Error("Yelp request failed");
 
-        fetchRestaurantsAndSave(groupCode, filters);
+        const restaurants = await response.json();
+        console.log("🍽️ Yelp responded with:", restaurants);
+
+        await set(
+          ref(database, "groups/" + groupCode + "/restaurants"),
+          restaurants
+        );
+
+        console.log(`✅ Saved ${restaurants.length} restaurants to Firebase`);
+      } catch (error) {
+        console.error("🔥 Error fetching/storing Yelp data:", error.message);
+      }
+    }
+
+    const form = document.getElementById("groupForm");
+    const result = document.getElementById("groupResult");
+    const groupCodeDisplay = document.getElementById("groupCode");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const filters = {
+        location: form.location.value,
+        mealtime: form.mealtime.value,
+        distance: form.distance.value,
+        price: form.price.value,
+        groupSize: parseInt(form.groupSize.value),
+      };
+
+      const groupCode = generateCode();
+
+      set(ref(database, "groups/" + groupCode), {
+        filters: filters,
+        createdAt: new Date().toISOString(),
       })
-      .catch((error) => {
-        alert("Error creating group: " + error.message);
-      });
+        .then(() => {
+          groupCodeDisplay.textContent = groupCode;
+          result.style.display = "block";
+
+          fetchRestaurantsAndSave(groupCode, filters);
+        })
+        .catch((error) => {
+          alert("Error creating group: " + error.message);
+        });
+    });
   });
 </script>
