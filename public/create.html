@@ -33,7 +33,14 @@
         </label>
         <label>
           Distance (miles):
-          <input type="number" name="distance" value="5" min="1" max="25" required />
+          <input
+            type="number"
+            name="distance"
+            value="5"
+            min="1"
+            max="25"
+            required
+          />
         </label>
         <label>
           Price Range:
@@ -99,7 +106,6 @@
             price: filters.price,
             radius: radiusMeters,
           };
-
           try {
             console.log("📡 Calling Yelp API with:", requestBody);
 
@@ -119,9 +125,14 @@
               restaurants
             );
 
-            console.log(`✅ Saved ${restaurants.length} restaurants to Firebase`);
+            console.log(
+              `✅ Saved ${restaurants.length} restaurants to Firebase`
+            );
           } catch (error) {
-            console.error("🔥 Error fetching/storing Yelp data:", error.message);
+            console.error(
+              "🔥 Error fetching/storing Yelp data:",
+              error.message
+            );
           }
         }
 
