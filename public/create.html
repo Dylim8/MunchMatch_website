@@ -1,6 +1,5 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-analytics.js";
   import {
     getDatabase,
     ref,
@@ -20,7 +19,6 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
     const database = getDatabase(app);
 
     function generateCode(length = 6) {
@@ -70,6 +68,11 @@
     const form = document.getElementById("groupForm");
     const result = document.getElementById("groupResult");
     const groupCodeDisplay = document.getElementById("groupCode");
+
+    if (!form || !result || !groupCodeDisplay) {
+      console.error("❌ Missing required DOM elements. Check HTML IDs.");
+      return;
+    }
 
     form.addEventListener("submit", (e) => {
       e.preventDefault();
