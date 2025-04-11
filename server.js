@@ -6,11 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-
-console.log(
-  "🔑 Loaded Yelp Key (short):",
-  process.env.YELP_API_KEY?.slice(0, 8)
-);
+console.log("🔑 Loaded Yelp Key (short):", process.env.YELP_API_KEY?.slice(0, 8));
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -24,42 +20,30 @@ app.use(express.json());
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// ✅ Test logging endpoint
+app.post("/test-log", (req, res) => {
+  console.log("✅ test-log hit:", req.body);
+  res.send("Logged");
 });
 
-// Yelp API route
 app.post("/api/yelp", async (req, res) => {
+  console.log("📨 Received Yelp POST with body:", req.body); // ✅ Debug: log body
   const { location = "Los Angeles", price = "1,2,3", radius = 8000 } = req.body;
 
-  console.log("📨 Received Yelp POST with body:", req.body);
-
   try {
-    const yelpResponse = await axios.get(
-      "https://api.yelp.com/v3/businesses/search",
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.YELP_API_KEY}`,
-        },
-        params: {
-          term: "restaurants",
-          location,
-          price,
-          radius,
-          limit: 20,
-          sort_by: "best_match",
-        },
-      }
-    );
-
-    console.log(
-      "📊 Yelp raw response (business count):",
-      yelpResponse.data.businesses?.length
-    );
-    console.log(
-      "📊 Yelp raw response (sample):",
-      yelpResponse.data.businesses?.[0]
-    );
+    const yelpResponse = await axios.get("https://api.yelp.com/v3/businesses/search", {
+      headers: {
+        Authorization: `Bearer ${process.env.YELP_API_KEY}`,
+      },
+      params: {
+        term: "restaurants",
+        location,
+        price,
+        radius,
+        limit: 20,
+        sort_by: "best_match",
+      },
+    });
 
     const cleaned = yelpResponse.data.businesses.map((b) => ({
       id: b.id,
@@ -77,6 +61,10 @@ app.post("/api/yelp", async (req, res) => {
     console.error("🔥 Yelp API error:", error.response?.data || error.message);
     res.status(500).json({ error: "Yelp API request failed" });
   }
+});
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.listen(port, () => {
