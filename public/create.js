@@ -62,7 +62,7 @@ async function fetchRestaurantsAndSave(groupCode, filters) {
   console.log("📦 Sending Yelp request:", requestBody);
 
   try {
-    const response = await fetch("/api/yelp", {
+    const response = await fetch("https://munchmatch-website.onrender.com/api/yelp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
