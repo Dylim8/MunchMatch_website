@@ -126,29 +126,28 @@
         };
 
         try {
-          console.log("📡 Calling Yelp API with:", requestBody);
+  console.log("📡 Calling Yelp API with:", requestBody);
 
-          const response = await fetch("http://localhost:3001/api/yelp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
+  const response = await fetch(`${window.location.origin}/api/yelp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
 
-          if (!response.ok) throw new Error("Yelp request failed");
+  if (!response.ok) throw new Error("Yelp request failed");
 
-          const restaurants = await response.json();
-          console.log("🍽️ Yelp responded with:", restaurants);
+  const restaurants = await response.json();
+  console.log("🍽️ Yelp responded with:", restaurants);
 
-          await set(
-            ref(database, "groups/" + groupCode + "/restaurants"),
-            restaurants
-          );
+  await set(
+    ref(database, "groups/" + groupCode + "/restaurants"),
+    restaurants
+  );
 
-          console.log(`✅ Saved ${restaurants.length} restaurants to Firebase`);
-        } catch (error) {
-          console.error("🔥 Error fetching/storing Yelp data:", error.message);
-        }
-      }
+  console.log(`✅ Saved ${restaurants.length} restaurants to Firebase`);
+} catch (error) {
+  console.error("🔥 Error fetching/storing Yelp data:", error.message);
+}
 
       const form = document.getElementById("groupForm");
       const result = document.getElementById("groupResult");
