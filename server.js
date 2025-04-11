@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 
 dotenv.config();
 
+console.log("🔑 Loaded Yelp Key (short):", process.env.YELP_API_KEY?.slice(0, 8));
+
 const app = express();
 const port = process.env.PORT || 3001;
 
