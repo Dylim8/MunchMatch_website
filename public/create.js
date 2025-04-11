@@ -34,16 +34,6 @@ document.getElementById("groupForm").addEventListener("submit", (e) => {
 
       // ✅ Trigger Yelp fetch
       fetchRestaurantsAndSave(groupCode, filters);
-
-      // ✅ TEMP: Manual test to confirm backend connection
-      fetch("/test-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Testing backend connection" }),
-      })
-        .then(res => res.text())
-        .then(data => console.log("🧪 /test-log success:", data))
-        .catch(err => console.error("❌ /test-log failed:", err));
     })
     .catch((error) => {
       alert("❌ Error creating group: " + error.message);
