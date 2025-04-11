@@ -11,65 +11,66 @@
     />
   </head>
   <body>
-    <!-- ✅ Restored Header -->
     <header>
       <h1>Create a MunchMatch Group</h1>
       <p class="tagline">Set your preferences and share with friends</p>
     </header>
 
     <div class="container">
-      <form id="groupForm">
-        <label>
-          Address or City:
-          <input
-            type="text"
-            name="location"
-            required
-            placeholder="e.g. Playa Del Rey"
-          />
-        </label>
-        <label>
-          Mealtime:
-          <select name="mealtime" required>
-            <option value="breakfast">Breakfast</option>
-            <option value="lunch">Lunch</option>
-            <option value="dinner">Dinner</option>
-          </select>
-        </label>
-        <label>
-          Distance (miles):
-          <input
-            type="number"
-            name="distance"
-            value="5"
-            min="1"
-            max="25"
-            required
-          />
-        </label>
-        <label>
-          Price Range:
-          <select name="price" required>
-            <option value="1">$</option>
-            <option value="1,2">$$ or less</option>
-            <option value="1,2,3">$$$ or less</option>
-            <option value="1,2,3,4">$$$$</option>
-          </select>
-        </label>
-        <label>
-          Number of People in Group:
-          <input type="number" name="groupSize" min="2" max="20" required />
-        </label>
-        <button type="submit">Create Group</button>
-      </form>
+      <!-- ✅ Wrapped form in .form-card for spacing -->
+      <div class="form-card">
+        <form id="groupForm">
+          <label>
+            Address or City:
+            <input
+              type="text"
+              name="location"
+              required
+              placeholder="e.g. Playa Del Rey"
+            />
+          </label>
+          <label>
+            Mealtime:
+            <select name="mealtime" required>
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+            </select>
+          </label>
+          <label>
+            Distance (miles):
+            <input
+              type="number"
+              name="distance"
+              value="5"
+              min="1"
+              max="25"
+              required
+            />
+          </label>
+          <label>
+            Price Range:
+            <select name="price" required>
+              <option value="1">$</option>
+              <option value="1,2">$$ or less</option>
+              <option value="1,2,3">$$$ or less</option>
+              <option value="1,2,3,4">$$$$</option>
+            </select>
+          </label>
+          <label>
+            Number of People in Group:
+            <input type="number" name="groupSize" min="2" max="20" required />
+          </label>
+          <button type="submit">Create Group</button>
+        </form>
 
-      <div id="groupResult" style="display: none">
-        <p><strong>Group Code:</strong> <span id="groupCode"></span></p>
-        <p>Share this code with your friends!</p>
+        <div id="groupResult" style="display: none">
+          <p><strong>Group Code:</strong> <span id="groupCode"></span></p>
+          <p>Share this code with your friends!</p>
+        </div>
       </div>
     </div>
 
-    <!-- ✅ Restored Footer -->
     <footer>
       <p>Powered by Firebase & Yelp Fusion API</p>
       <div class="footer-links">
