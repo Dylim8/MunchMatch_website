@@ -11,7 +11,12 @@
     />
   </head>
   <body>
-    <!-- Your actual HTML content must be here for the JS to work -->
+    <!-- ✅ Restored Header -->
+    <header>
+      <h1>Create a MunchMatch Group</h1>
+      <p class="tagline">Set your preferences and share with friends</p>
+    </header>
+
     <div class="container">
       <form id="groupForm">
         <label>
@@ -64,7 +69,14 @@
       </div>
     </div>
 
-    <!-- Your Firebase logic script -->
+    <!-- ✅ Restored Footer -->
+    <footer>
+      <p>Powered by Firebase & Yelp Fusion API</p>
+      <div class="footer-links">
+        <a href="#">Terms of Use</a> | <a href="#">Privacy Policy</a>
+      </div>
+    </footer>
+
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
       import {
@@ -106,6 +118,7 @@
             price: filters.price,
             radius: radiusMeters,
           };
+
           try {
             console.log("📡 Calling Yelp API with:", requestBody);
 
