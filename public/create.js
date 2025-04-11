@@ -47,10 +47,12 @@ async function fetchRestaurantsAndSave(groupCode, filters) {
     radius: radiusMeters,
   };
 
-  console.log("📦 Sending Yelp request:", requestBody);
+  const endpoint = `${window.location.origin}/api/yelp`;
+  console.log("📦 Sending Yelp request to:", endpoint);
+  console.log("📦 Request body:", requestBody);
 
   try {
-    const response = await fetch(`${window.location.origin}/api/yelp`, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
