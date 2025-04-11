@@ -29,6 +29,8 @@ app.get("*", (req, res) => {
 app.post("/api/yelp", async (req, res) => {
   const { location = "Los Angeles", price = "1,2,3", radius = 8000 } = req.body;
 
+  console.log("📨 Received Yelp POST with body:", req.body);
+
   try {
     const yelpResponse = await axios.get("https://api.yelp.com/v3/businesses/search", {
       headers: {
@@ -43,6 +45,9 @@ app.post("/api/yelp", async (req, res) => {
         sort_by: "best_match",
       },
     });
+
+    console.log("📊 Yelp raw response (business count):", yelpResponse.data.businesses?.length);
+    console.log("📊 Yelp raw response (sample):", yelpResponse.data.businesses?.[0]);
 
     const cleaned = yelpResponse.data.businesses.map((b) => ({
       id: b.id,
