@@ -28,11 +28,48 @@ document.getElementById("groupForm").addEventListener("submit", (e) => {
       createdAt: new Date().toISOString(),
     })
     .then(() => {
-      console.log("Group created:", groupCode);
+      console.log("✅ Group created:", groupCode);
       document.getElementById("groupCode").textContent = groupCode;
       document.getElementById("groupResult").style.display = "block";
+
+      // ✅ Trigger Yelp request and save restaurants
+      fetchRestaurantsAndSave(groupCode, filters);
     })
     .catch((error) => {
-      alert("Error creating group: " + error.message);
+      alert("❌ Error creating group: " + error.message);
     });
 });
+
+// ✅ Yelp Fetch Logic
+async function fetchRestaurantsAndSave(groupCode, filters) {
+  const radiusMiles = parseInt(filters.distance || "5");
+  const radiusMeters = Math.min(radiusMiles * 1609, 40000);
+
+  const requestBody = {
+    location: filters.location,
+    price: filters.price,
+    radius: radiusMeters,
+  };
+
+  console.log("📦 Sending Yelp request:", requestBody);
+
+  try {
+    const response = await fetch("/api/yelp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log("🧾 Yelp API Status:", response.status);
+
+    if (!response.ok) throw new Error("Yelp request failed");
+
+    const restaurants = await response.json();
+    console.log("🍴 Yelp returned:", restaurants.length, "restaurants");
+
+    await db.ref("groups/" + groupCode + "/restaurants").set(restaurants);
+    console.log("✅ Saved restaurants to Firebase");
+  } catch (error) {
+    console.error("🔥 Yelp API error:", error.message);
+  }
+}
