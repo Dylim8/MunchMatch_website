@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Join Group - MunchMatch</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header>
+      <h1>Join a MunchMatch Group</h1>
+      <p class="tagline">Enter the code to start swiping with your group</p>
+    </header>
+
+    <div class="container">
+      <section class="form-card">
+        <form id="joinForm">
+          <label>
+            Enter Group Code:
+            <input
+              type="text"
+              name="groupCode"
+              required
+              placeholder="e.g. ABC123"
+            />
+          </label>
+          <button type="submit">Join</button>
+        </form>
+
+        <div id="groupStatus" style="display: none; margin-top: 2em">
+          <h3 style="color: green">Group Found ✅</h3>
+          <p><strong>Location:</strong> <span id="groupLocation"></span></p>
+          <p>
+            <strong>Restaurants Loaded:</strong>
+            <span id="restaurantCount"></span>
+          </p>
+          <p>
+            <a id="startSwiping" href="#" class="swipe-link">Start Swiping</a>
+          </p>
+        </div>
+
+        <div id="groupError" style="display: none; color: red; margin-top: 1em">
+          Group not found. Please check your code.
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <p>Powered by Firebase & Yelp Fusion API</p>
+      <div class="footer-links">
+        <a href="#">Terms of Use</a> | <a href="#">Privacy Policy</a>
+      </div>
+    </footer>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+      import {
+        getDatabase,
+        ref,
+        get,
+        child,
+      } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyBoyDhim2hxgfXuWmqP-8ZbaSies8Y015Y",
+        authDomain: "munchmatch-9e2fe.firebaseapp.com",
+        databaseURL: "https://munchmatch-9e2fe-default-rtdb.firebaseio.com",
+        projectId: "munchmatch-9e2fe",
+        storageBucket: "munchmatch-9e2fe.appspot.com",
+        messagingSenderId: "560563095562",
+        appId: "1:560563095562:web:15e0fd055cbd75b1e8b7f3",
+        measurementId: "G-9YT0LG7CEE",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+
+      const form = document.getElementById("joinForm");
+      const statusDiv = document.getElementById("groupStatus");
+      const errorDiv = document.getElementById("groupError");
+      const locationSpan = document.getElementById("groupLocation");
+      const countSpan = document.getElementById("restaurantCount");
+      const startSwipingLink = document.getElementById("startSwiping");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const code = form.groupCode.value.trim().toUpperCase();
+
+        try {
+          const snapshot = await get(child(ref(db), `groups/${code}`));
+          if (snapshot.exists()) {
+            const groupData = snapshot.val();
+            const restaurantList = groupData.restaurants || [];
+
+            locationSpan.textContent = groupData.filters?.location || "Unknown";
+            countSpan.textContent = restaurantList.length;
+            startSwipingLink.href = `swipe.html?code=${code}`;
+
+            statusDiv.style.display = "block";
+            errorDiv.style.display = "none";
+          } else {
+            throw new Error("Group not found");
+          }
+        } catch (err) {
+          console.error("Error:", err.message);
+          statusDiv.style.display = "none";
+          errorDiv.style.display = "block";
+        }
+      });
+    </script>
+  </body>
+</html>

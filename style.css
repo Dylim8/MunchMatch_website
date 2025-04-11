@@ -1,0 +1,309 @@
+/* Base Reset & Font */
+
+@media (max-width: 480px) {
+  header h1 {
+    font-size: 2.2rem;
+  }
+
+  .tagline {
+    font-size: 1rem;
+  }
+
+  .cta-buttons button {
+    font-size: 1rem;
+    padding: 0.7em 1.2em;
+  }
+
+  section.how-it-works ol {
+    font-size: 1rem;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+header,
+footer {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1.5em;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Quicksand", sans-serif;
+  background: linear-gradient(to bottom, #fff3e6, #ffe5d0);
+  color: #333;
+  text-align: center;
+}
+
+/* Header */
+header {
+  background: linear-gradient(135deg, #ff8c42, #ff6a3d);
+  color: white;
+  padding: 3em 1em 2em;
+  border-bottom-left-radius: 30px;
+  border-bottom-right-radius: 30px;
+}
+
+header h1 {
+  font-size: 3rem;
+  margin: 0;
+}
+
+.tagline {
+  font-size: 1.25rem;
+  margin-top: 0.5em;
+}
+
+/* CTA Buttons */
+.cta-buttons {
+  margin-top: 2em;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1em;
+}
+
+.cta-buttons button {
+  background-color: white;
+  color: #ff6a3d;
+  font-weight: bold;
+  font-size: 1.1rem;
+  padding: 0.8em 1.5em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.cta-buttons button:hover {
+  background-color: #ffe1c4;
+  transform: translateY(-2px);
+}
+
+/* How It Works Section */
+section.how-it-works {
+  padding: 3em 1em;
+}
+
+section.how-it-works h2 {
+  font-size: 2rem;
+  margin-bottom: 1em;
+}
+
+section.how-it-works ol {
+  list-style: decimal;
+  text-align: left;
+  max-width: 500px;
+  margin: 0 auto;
+  padding-left: 1.2em;
+}
+
+section.how-it-works li {
+  margin-bottom: 1em;
+  font-size: 1.1rem;
+}
+
+/* Footer */
+footer {
+  background-color: #333;
+  color: white;
+  padding: 2em 1em;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  margin-top: auto;
+}
+
+.footer-links {
+  margin-top: 1em;
+}
+
+.footer-links a {
+  color: #ffb381;
+  text-decoration: none;
+  margin: 0 0.5em;
+}
+
+.footer-links a:hover {
+  text-decoration: underline;
+}
+
+/* Form Card */
+.form-card {
+  background: white;
+  padding: 2em;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  max-width: 600px;
+  margin: 3em auto;
+  box-sizing: border-box;
+}
+
+/* Form Fields */
+form label {
+  display: block;
+  margin-bottom: 1.5em;
+  text-align: left;
+  font-weight: bold;
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 0.6em;
+  margin-top: 0.3em;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+/* Submit Button */
+form button[type="submit"] {
+  margin-top: 1.5em;
+  background-color: #ff6a3d;
+  color: white;
+  border: none;
+  padding: 0.8em 1.5em;
+  font-size: 1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+form button[type="submit"]:hover {
+  background-color: #ff8c42;
+  transform: translateY(-2px);
+}
+
+/* Group Code Display */
+#groupResult {
+  margin-top: 2em;
+  background-color: #fff3e6;
+  padding: 1.5em;
+  border-radius: 15px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.swipe-link:hover {
+  background-color: #ff8c42;
+}
+
+/* Swipe Section */
+.swipe-section {
+  margin-top: 2em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Swipe Card */
+#card {
+  background: white;
+  padding: 2em;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  transition: transform 0.2s ease-in-out;
+}
+
+#card img {
+  width: 100%;
+  max-height: 250px;
+  object-fit: cover;
+  border-radius: 15px;
+  margin-bottom: 1em;
+}
+
+#restaurantName {
+  font-size: 1.5rem;
+  margin: 0.5em 0;
+}
+
+#restaurantInfo {
+  color: #666;
+  font-size: 1rem;
+}
+
+/* Swipe Buttons */
+.swipe-buttons {
+  margin-top: 1.5em;
+  display: flex;
+  gap: 2em;
+}
+
+.swipe-buttons button {
+  font-size: 2rem;
+  padding: 0.5em 1em;
+  border: none;
+  border-radius: 50%;
+  background-color: #ffe1c4;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.swipe-buttons button:hover {
+  background-color: #ffd1a6;
+  transform: scale(1.1);
+}
+
+/* Match Screen */
+#matchScreen {
+  text-align: center;
+  padding: 2em;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  background-color: #fff9ec;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#matchScreen h2 {
+  font-size: 2em;
+  color: #ff6a3d;
+}
+
+#matchRestaurantName {
+  font-size: 1.5em;
+  margin-top: 0.5em;
+}
+
+#viewOnYelp {
+  font-size: 1.2em;
+  display: inline-block;
+  margin-top: 1em;
+  padding: 0.75em 1.5em;
+  background-color: #ffa94d;
+  color: white;
+  border-radius: 0.5em;
+  text-decoration: none;
+  transition: background-color 0.2s ease-in-out;
+}
+
+#viewOnYelp:hover {
+  background-color: #ff8c42;
+}

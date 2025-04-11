@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Swipe - MunchMatch</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="swipeUI">
+      <header>
+        <h1>Start Swiping 🍽️</h1>
+      </header>
+
+      <section class="swipe-section">
+        <div id="card">
+          <img id="restaurantImage" src="" alt="Restaurant" />
+          <h2 id="restaurantName"></h2>
+          <p id="restaurantInfo"></p>
+        </div>
+
+        <div class="swipe-buttons">
+          <button id="dislikeBtn">👎</button>
+          <button id="likeBtn">👍</button>
+        </div>
+      </section>
+    </div>
+
+    <section
+      id="matchScreen"
+      style="
+        display: none;
+        text-align: center;
+        padding: 2em;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 100vw;
+        background-color: #fff9ec;
+        z-index: 999;
+        box-sizing: border-box;
+      "
+    >
+      <h2 style="font-size: 2em">🎉 You’ve Got a Match! 🎉</h2>
+      <p
+        id="matchRestaurantName"
+        style="font-size: 1.5em; margin-top: 0.5em"
+      ></p>
+      <p style="margin: 1em 0">Everyone in your group liked the same place!</p>
+      <a
+        id="viewOnYelp"
+        href="#"
+        target="_blank"
+        style="
+          font-size: 1.2em;
+          display: inline-block;
+          margin-top: 1em;
+          padding: 0.75em 1.5em;
+          background-color: #ffa94d;
+          color: white;
+          border-radius: 0.5em;
+          text-decoration: none;
+        "
+        >View on Yelp</a
+      >
+    </section>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+      import {
+        getDatabase,
+        ref,
+        get,
+        child,
+        set,
+        onValue,
+      } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyBoyDhim2hxgfXuWmqP-8ZbaSies8Y015Y",
+        authDomain: "munchmatch-9e2fe.firebaseapp.com",
+        databaseURL: "https://munchmatch-9e2fe-default-rtdb.firebaseio.com",
+        projectId: "munchmatch-9e2fe",
+        storageBucket: "munchmatch-9e2fe.appspot.com",
+        messagingSenderId: "560563095562",
+        appId: "1:560563095562:web:15e0fd055cbd75b1e8b7f3",
+        measurementId: "G-9YT0LG7CEE",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const groupCode = urlParams.get("code");
+      const userId = "user-" + Math.random().toString(36).substring(2, 10);
+
+      const card = document.getElementById("card");
+      const nameEl = document.getElementById("restaurantName");
+      const imgEl = document.getElementById("restaurantImage");
+      const infoEl = document.getElementById("restaurantInfo");
+
+      let currentIndex = 0;
+      let restaurants = [];
+      let matchFound = false;
+
+      async function loadRestaurants() {
+        try {
+          const snapshot = await get(
+            child(ref(db), `groups/${groupCode}/restaurants`)
+          );
+          if (!snapshot.exists()) throw new Error("No restaurants found");
+          restaurants = snapshot.val();
+          console.log("🍽️ Loaded restaurants:", restaurants);
+          showRestaurant(currentIndex);
+        } catch (err) {
+          alert("Error loading restaurants: " + err.message);
+        }
+      }
+
+      function showRestaurant(index) {
+        const r = restaurants[index];
+        if (!r) {
+          nameEl.textContent = "You're done!";
+          imgEl.style.display = "none";
+          infoEl.textContent = "";
+          document.querySelector(".swipe-buttons").style.display = "none";
+          return;
+        }
+
+        nameEl.textContent = r.name;
+        imgEl.src = r.image_url;
+        imgEl.style.display = "block";
+        infoEl.textContent = `${r.rating}⭐ • ${r.location?.city || ""}`;
+      }
+
+      function recordSwipe(direction) {
+        const restaurant = restaurants[currentIndex];
+        if (!restaurant) return;
+
+        console.log(`🖐️ Swiped ${direction} on ${restaurant.name}`);
+
+        const swipeRef = ref(
+          db,
+          `groups/${groupCode}/swipes/${userId}/${restaurant.id}`
+        );
+        set(swipeRef, direction);
+
+        currentIndex++;
+        showRestaurant(currentIndex);
+      }
+
+      function showMatchScreen(restaurant) {
+        console.log("🎉 Showing match screen for:", restaurant);
+
+        const swipeUI = document.getElementById("swipeUI");
+        const matchScreen = document.getElementById("matchScreen");
+        const nameEl = document.getElementById("matchRestaurantName");
+        const linkEl = document.getElementById("viewOnYelp");
+
+        if (!swipeUI || !matchScreen || !nameEl || !linkEl) {
+          console.error("❌ Missing DOM elements for match screen.");
+          return;
+        }
+
+        if (!restaurant || !restaurant.name) {
+          console.error("❌ Invalid restaurant object:", restaurant);
+          return;
+        }
+
+        swipeUI.style.display = "none";
+        nameEl.textContent = restaurant.name;
+
+        const safeUrl = restaurant.url || "https://www.yelp.com/";
+        linkEl.href = safeUrl;
+
+        matchScreen.style.display = "block";
+      }
+
+      function disableSwiping() {
+        document.getElementById("likeBtn").disabled = true;
+        document.getElementById("dislikeBtn").disabled = true;
+        card.style.opacity = 0.5;
+      }
+
+      function listenForMatches() {
+        const swipesRef = ref(db, `groups/${groupCode}/swipes`);
+        const groupRef = ref(db, `groups/${groupCode}/filters/groupSize`);
+
+        get(groupRef).then((snapshot) => {
+          const groupSize = snapshot.val();
+          console.log("👥 Group size:", groupSize);
+          if (!groupSize) {
+            console.warn("⚠️ No group size found");
+            return;
+          }
+
+          onValue(swipesRef, (snapshot) => {
+            if (matchFound) return;
+
+            console.log("🔥 Swipe data changed");
+            const swipeData = snapshot.val();
+            console.log("📊 Current swipe data:", swipeData);
+            const likeCountMap = {};
+
+            Object.values(swipeData || {}).forEach((userSwipes) => {
+              Object.entries(userSwipes).forEach(([restaurantId, vote]) => {
+                if (vote === "like") {
+                  likeCountMap[restaurantId] =
+                    (likeCountMap[restaurantId] || 0) + 1;
+                }
+              });
+            });
+
+            for (const [restaurantId, count] of Object.entries(likeCountMap)) {
+              console.log(`✅ ${restaurantId} has ${count} likes`);
+              if (count >= groupSize) {
+                console.log("🎯 Match found on:", restaurantId);
+                matchFound = true;
+                const match = restaurants.find((r) => r.id === restaurantId);
+                if (match) {
+                  showMatchScreen(match);
+                  disableSwiping();
+                }
+                break;
+              }
+            }
+          });
+        });
+      }
+
+      document
+        .getElementById("likeBtn")
+        .addEventListener("click", () => recordSwipe("like"));
+      document
+        .getElementById("dislikeBtn")
+        .addEventListener("click", () => recordSwipe("dislike"));
+
+      loadRestaurants().then(() => {
+        listenForMatches();
+      });
+    </script>
+  </body>
+</html>
