@@ -31,8 +31,6 @@ document.getElementById("groupForm").addEventListener("submit", (e) => {
       console.log("✅ Group created:", groupCode);
       document.getElementById("groupCode").textContent = groupCode;
       document.getElementById("groupResult").style.display = "block";
-
-      // ✅ Trigger Yelp fetch
       fetchRestaurantsAndSave(groupCode, filters);
     })
     .catch((error) => {
@@ -52,7 +50,7 @@ async function fetchRestaurantsAndSave(groupCode, filters) {
   console.log("📦 Sending Yelp request:", requestBody);
 
   try {
-    const response = await fetch("https://munchmatch-website.onrender.com/api/yelp", {
+    const response = await fetch(`${window.location.origin}/api/yelp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
