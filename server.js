@@ -2,15 +2,28 @@ import express from "express";
 import axios from "axios";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config(); // Load .env variables
+dotenv.config();
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
 
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Yelp API route
 app.post("/api/yelp", async (req, res) => {
   const { location = "Los Angeles", price = "1,2,3", radius = 8000 } = req.body;
 
