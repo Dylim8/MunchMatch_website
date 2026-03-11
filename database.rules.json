@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "meta": {
+      ".read": true,
+      ".write": true
+    },
+    "groups": {
+      "$groupCode": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
