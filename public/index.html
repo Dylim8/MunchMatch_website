@@ -665,6 +665,7 @@
   const db              = getDatabase(app);
   const functions       = getFunctions(app);
   const fetchPlacesFn   = httpsCallable(functions, 'fetchRestaurants');
+  const registerMemberFn = httpsCallable(functions, 'joinGroup');
   const auth            = getAuth(app);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -847,8 +848,9 @@
       // 3. Save results
       await set(ref(db, `groups/${groupCode}/restaurants`), rList);
 
-      // 4. Register the host as a present member right away
-      await set(ref(db, `groups/${groupCode}/members/${userId}`), { joinedAt: Date.now(), status: 'waiting' });
+      // 4. Register the host as a present member right away — routed through
+      // a Cloud Function so capacity is enforced atomically server-side
+      await registerMemberFn({ groupCode });
 
       // 5. Increment the global metric
       await incrementCounter();
@@ -895,20 +897,10 @@
 
       groupCode = code;
 
-      // Register as a present member — but don't clobber an existing
-      // registration (reopening a join link shouldn't reset joinedAt/status),
-      // and don't let the group exceed its configured size.
-      const memberRef  = ref(db, `groups/${groupCode}/members/${userId}`);
-      const memberSnap = await get(memberRef);
-      if (!memberSnap.exists()) {
-        const membersSnap  = await get(ref(db, `groups/${groupCode}/members`));
-        const currentCount = membersSnap.exists() ? Object.keys(membersSnap.val()).length : 0;
-        const groupSize     = data.filters?.groupSize || 0;
-        if (groupSize && currentCount >= groupSize) {
-          throw new Error('This group is already full.');
-        }
-        await set(memberRef, { joinedAt: Date.now(), status: 'waiting' });
-      }
+      // Register as a present member — routed through a Cloud Function so
+      // capacity is enforced atomically server-side, and repeat joins are a
+      // no-op (won't clobber an existing joinedAt/status).
+      await registerMemberFn({ groupCode });
 
       document.getElementById('j-loc').textContent   = data.filters?.location || '?';
       document.getElementById('j-meal').textContent  = data.filters?.mealtime || '?';

@@ -23,7 +23,7 @@
         },
         "members": {
           "$uid": {
-            ".write": "auth != null && auth.uid == $uid",
+            ".write": "auth != null && auth.uid == $uid && data.exists()",
             ".validate": "newData.hasChild('joinedAt') && newData.child('joinedAt').isNumber() && (!data.exists() || newData.child('joinedAt').val() == data.child('joinedAt').val()) && (newData.child('status').val() == 'waiting' || newData.child('status').val() == 'swiping')"
           }
         },

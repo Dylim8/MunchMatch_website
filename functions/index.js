@@ -1,7 +1,9 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions");
+const admin = require("firebase-admin");
 
+admin.initializeApp();
 setGlobalOptions({ maxInstances: 10 });
 
 const PLACES_KEY = defineSecret("GOOGLE_PLACES_KEY");
@@ -172,4 +174,44 @@ exports.fetchRestaurants = onCall({ secrets: [PLACES_KEY] }, async (request) => 
   );
 
   return results;
+});
+
+// Registers the caller as a member of a group, atomically enforcing groupSize.
+// Runs under the Admin SDK (bypasses database rules) so it's the only path
+// that can ever create a members/$uid record — clients may only update their
+// own existing record afterward (e.g. flipping status to 'swiping').
+exports.joinGroup = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign-in required.");
+  }
+  const uid       = request.auth.uid;
+  const groupCode = String(request.data?.groupCode || "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(groupCode)) {
+    throw new HttpsError("invalid-argument", "Invalid group code.");
+  }
+
+  const db       = admin.database();
+  const groupRef = db.ref(`groups/${groupCode}`);
+
+  const sizeSnap  = await groupRef.child("filters/groupSize").get();
+  if (!sizeSnap.exists()) {
+    throw new HttpsError("not-found", "Group not found.");
+  }
+  const groupSize = Number(sizeSnap.val());
+  if (!Number.isInteger(groupSize) || groupSize < 2 || groupSize > 20) {
+    throw new HttpsError("failed-precondition", "Group configuration is invalid.");
+  }
+
+  const { committed } = await groupRef.child("members").transaction((current) => {
+    if (current && current[uid]) return current; // already a member — no-op
+    const count = current ? Object.keys(current).length : 0;
+    if (count >= groupSize) return; // abort — group is full
+    return { ...(current || {}), [uid]: { joinedAt: Date.now(), status: "waiting" } };
+  });
+
+  if (!committed) {
+    throw new HttpsError("resource-exhausted", "This group is already full.");
+  }
+
+  return { ok: true };
 });
