@@ -1,13 +1,40 @@
 {
   "rules": {
     "meta": {
-      ".read": true,
-      ".write": true
+      "partiesHelped": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.isNumber()"
+      }
     },
     "groups": {
       "$groupCode": {
         ".read": true,
-        ".write": true
+
+        "filters": {
+          ".write": "!data.exists()",
+          ".validate": "newData.hasChildren(['location','groupSize'])"
+        },
+        "createdAt": {
+          ".write": "!data.exists()"
+        },
+        "restaurants": {
+          ".write": "!data.exists() && root.child('groups/'+$groupCode+'/filters').exists()"
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid",
+            ".validate": "newData.hasChild('joinedAt') && newData.hasChild('status')"
+          }
+        },
+        "swipes": {
+          "$uid": {
+            "$rid": {
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.isString() && (newData.val() == 'like' || newData.val() == 'dislike')"
+            }
+          }
+        }
       }
     }
   }

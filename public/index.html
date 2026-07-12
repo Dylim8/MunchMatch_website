@@ -645,6 +645,8 @@
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
   import { getFunctions, httpsCallable }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-functions.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";
 
   // ── Config ────────────────────────────────────────────────────────────────
   // No Google Places key here — it lives as a Firebase secret, never in the browser
@@ -660,13 +662,33 @@
   const db              = getDatabase(app);
   const functions       = getFunctions(app);
   const fetchPlacesFn   = httpsCallable(functions, 'fetchRestaurants');
+  const auth            = getAuth(app);
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  // Anonymous sign-in must resolve before any read/write that depends on userId.
+  let userId = null;
+  let resolveAuthReady;
+  const authReadyPromise = new Promise(res => { resolveAuthReady = res; });
+
+  onAuthStateChanged(auth, user => {
+    if (!user) return; // signed out / still resolving
+    userId = user.uid;
+    resolveAuthReady(userId);
+    document.getElementById('create-btn').disabled = false;
+    document.getElementById('join-btn').disabled    = false;
+  });
+
+  // Disable the actions that lead to userId-scoped writes until auth resolves
+  document.getElementById('create-btn').disabled = true;
+  document.getElementById('join-btn').disabled    = true;
+
+  signInAnonymously(auth).catch(e => console.error('Anonymous sign-in failed:', e));
 
   // ── State ─────────────────────────────────────────────────────────────────
   let groupCode   = null;
   let restaurants = [];
   let idx         = 0;
   let matchFound  = false;
-  const userId    = 'u-' + Math.random().toString(36).slice(2, 9);
   let wrUnsubscribe = null; // waiting room Firebase listener cleanup
 
   // ── Copy join link ────────────────────────────────────────────────────────
@@ -770,10 +792,10 @@
 
     try {
       // 1. Save group shell immediately (so joiners can find the code right away)
-      await set(ref(db, `groups/${groupCode}`), {
-        filters,
-        createdAt: new Date().toISOString(),
-      });
+      // Each child has its own write-once rule, so it must be set at its own
+      // path — a single set() at the group root isn't authorized by either rule.
+      await set(ref(db, `groups/${groupCode}/filters`), filters);
+      await set(ref(db, `groups/${groupCode}/createdAt`), new Date().toISOString());
 
       // 2. Call the Cloud Function — Places API key never touches the browser
       const result = await fetchPlacesFn({ location: loc, distance: dist, mealtime: meal, price, cuisine, rating, dietary, openNow });
@@ -897,10 +919,12 @@
   }
 
   async function startSwipe() {
+    // Auth must resolve before we can write anything keyed by userId
+    await authReadyPromise;
     // Clean up waiting room listener if still active
     if (wrUnsubscribe) { wrUnsubscribe(); wrUnsubscribe = null; }
     // Record this member as having started swiping
-    set(ref(db, `groups/${groupCode}/members/${userId}`), { startedAt: Date.now() });
+    set(ref(db, `groups/${groupCode}/members/${userId}`), { joinedAt: Date.now(), status: 'swiping' });
 
     setSwipeState('loading');
     startLoaderCycle();
