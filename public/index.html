@@ -411,6 +411,9 @@
     <button class="btn btn-primary" onclick="nav('screen-create')">Create Group</button>
     <button class="btn btn-secondary" onclick="nav('screen-join')">Join Group</button>
   </div>
+  <div class="error-pill" id="auth-error" style="margin-top:0.9rem;">
+    ✕ &nbsp;Couldn't connect. <a href="#" onclick="retryAuth(); return false;" style="color:inherit;text-decoration:underline;margin-left:0.3em;">Tap to retry</a>
+  </div>
 </div>
 
 <!-- ── CREATE ── -->
@@ -667,8 +670,28 @@
   // ── Auth ──────────────────────────────────────────────────────────────────
   // Anonymous sign-in must resolve before any read/write that depends on userId.
   let userId = null;
-  let resolveAuthReady;
-  const authReadyPromise = new Promise(res => { resolveAuthReady = res; });
+  let resolveAuthReady, rejectAuthReady;
+  let authReadyPromise = newAuthReadyPromise();
+
+  function newAuthReadyPromise() {
+    const p = new Promise((res, rej) => { resolveAuthReady = res; rejectAuthReady = rej; });
+    p.catch(() => {}); // mark as handled so a rejection before any await doesn't log spuriously; real awaiters still see it
+    return p;
+  }
+
+  function attemptSignIn() {
+    document.getElementById('auth-error')?.classList.remove('visible');
+    signInAnonymously(auth).catch(e => {
+      console.error('Anonymous sign-in failed:', e);
+      rejectAuthReady(e);
+      document.getElementById('auth-error')?.classList.add('visible');
+    });
+  }
+
+  window.retryAuth = function() {
+    authReadyPromise = newAuthReadyPromise();
+    attemptSignIn();
+  };
 
   onAuthStateChanged(auth, user => {
     if (!user) return; // signed out / still resolving
@@ -676,20 +699,22 @@
     resolveAuthReady(userId);
     document.getElementById('create-btn').disabled = false;
     document.getElementById('join-btn').disabled    = false;
+    document.getElementById('auth-error')?.classList.remove('visible');
   });
 
   // Disable the actions that lead to userId-scoped writes until auth resolves
   document.getElementById('create-btn').disabled = true;
   document.getElementById('join-btn').disabled    = true;
 
-  signInAnonymously(auth).catch(e => console.error('Anonymous sign-in failed:', e));
+  attemptSignIn();
 
   // ── State ─────────────────────────────────────────────────────────────────
   let groupCode   = null;
   let restaurants = [];
   let idx         = 0;
   let matchFound  = false;
-  let wrUnsubscribe = null; // waiting room Firebase listener cleanup
+  let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
+  let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
 
   // ── Copy join link ────────────────────────────────────────────────────────
   window.copyGroupLink = function() {
@@ -792,6 +817,8 @@
     const filters = { location: loc, distance: dist, groupSize: size, mealtime: meal, price, cuisine, rating, dietary, openNow };
 
     try {
+      await authReadyPromise;
+
       // 0. Find a group code that isn't already taken (retry a few times on collision)
       groupCode = null;
       for (let attempt = 0; attempt < 5 && !groupCode; attempt++) {
@@ -820,17 +847,26 @@
       // 3. Save results
       await set(ref(db, `groups/${groupCode}/restaurants`), rList);
 
-      // 4. Increment the global metric
+      // 4. Register the host as a present member right away
+      await set(ref(db, `groups/${groupCode}/members/${userId}`), { joinedAt: Date.now(), status: 'waiting' });
+
+      // 5. Increment the global metric
       await incrementCounter();
       loadCounter(); // refresh badge without waiting
 
+      lobbyScreenId = 'screen-create';
       document.getElementById('create-loader').classList.remove('visible');
       document.getElementById('create-go-btn').style.display = 'flex';
       document.getElementById('create-waiting-room').classList.add('visible');
       startWaitingRoom(groupCode, size, 'cwr-label', 'cwr-pips');
     } catch(e) {
       console.error('Create failed:', e);
+      groupCode = null;
       document.getElementById('create-loader').classList.remove('visible');
+      document.getElementById('create-code-card').classList.remove('visible');
+      document.getElementById('created-code').textContent = '';
+      document.getElementById('create-go-btn').style.display = 'none';
+      document.getElementById('create-waiting-room').classList.remove('visible');
       document.getElementById('create-error').classList.add('visible');
       btn.disabled = false;
     }
@@ -848,6 +884,7 @@
     document.getElementById('join-result').classList.remove('visible');
 
     try {
+      await authReadyPromise;
       const snap = await get(child(ref(db), `groups/${code}`));
       if (!snap.exists()) throw new Error('Group not found. Check your code.');
 
@@ -857,6 +894,22 @@
       if (!rList.length) throw new Error('Restaurants still loading, try again in a moment.');
 
       groupCode = code;
+
+      // Register as a present member — but don't clobber an existing
+      // registration (reopening a join link shouldn't reset joinedAt/status),
+      // and don't let the group exceed its configured size.
+      const memberRef  = ref(db, `groups/${groupCode}/members/${userId}`);
+      const memberSnap = await get(memberRef);
+      if (!memberSnap.exists()) {
+        const membersSnap  = await get(ref(db, `groups/${groupCode}/members`));
+        const currentCount = membersSnap.exists() ? Object.keys(membersSnap.val()).length : 0;
+        const groupSize     = data.filters?.groupSize || 0;
+        if (groupSize && currentCount >= groupSize) {
+          throw new Error('This group is already full.');
+        }
+        await set(memberRef, { joinedAt: Date.now(), status: 'waiting' });
+      }
+
       document.getElementById('j-loc').textContent   = data.filters?.location || '?';
       document.getElementById('j-meal').textContent  = data.filters?.mealtime || '?';
       document.getElementById('j-count').textContent = `${rList.length} places`;
@@ -878,6 +931,7 @@
       document.getElementById('join-go-btn').style.display = 'flex';
 
       // ── Waiting room: live member count ──────────────────────────────────
+      lobbyScreenId = 'screen-join';
       const groupSize = data.filters?.groupSize || 0;
       document.getElementById('waiting-room').classList.add('visible');
       startWaitingRoom(code, groupSize, 'wr-label', 'wr-pips');
@@ -942,25 +996,32 @@
   }
 
   async function startSwipe() {
-    // Auth must resolve before we can write anything keyed by userId
-    await authReadyPromise;
-    // Clean up waiting room listener if still active
-    if (wrUnsubscribe) { wrUnsubscribe(); wrUnsubscribe = null; }
-    // Record this member as having started swiping
-    set(ref(db, `groups/${groupCode}/members/${userId}`), { joinedAt: Date.now(), status: 'swiping' });
-
     setSwipeState('loading');
     startLoaderCycle();
     try {
+      // Auth must resolve before we can write anything keyed by userId
+      await authReadyPromise;
+      // Member was already registered with status:'waiting' at join/create time — just flip the status
+      await set(ref(db, `groups/${groupCode}/members/${userId}/status`), 'swiping');
       const snap = await get(child(ref(db), `groups/${groupCode}/restaurants`));
       if (!snap.exists()) throw new Error('No restaurants found');
+
+      // Only leave the waiting room once startup has fully succeeded —
+      // if we bail out to the lobby on failure, its live count must still work.
+      if (wrUnsubscribe) { wrUnsubscribe(); wrUnsubscribe = null; }
+
       restaurants = snap.val();
       idx = 0; matchFound = false;
       stopLoaderCycle();
       setSwipeState('cards');
       renderStack();
       watchForMatch();
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) {
+      stopLoaderCycle();
+      setSwipeState(null); // hide the stuck loading overlay
+      nav(lobbyScreenId || 'screen-home');
+      alert('Error: ' + e.message);
+    }
   }
 
   function setSwipeState(s) {
