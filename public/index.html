@@ -716,6 +716,13 @@
   // Photo URIs are resolved server-side and stored as direct CDN URLs — no key needed
   function getPhotoSrc(r) { return r.photoUri || ''; }
 
+  function chipEl(baseClass, text, extraClass) {
+    const span = document.createElement('span');
+    span.className = extraClass ? `${baseClass} ${extraClass}` : baseClass;
+    span.textContent = text;
+    return span;
+  }
+
   // ── Navigation ────────────────────────────────────────────────────────────
   window.nav = function(id) {
     document.querySelectorAll('.screen.active').forEach(s => {
@@ -782,15 +789,23 @@
     btn.disabled = true;
     document.getElementById('create-error').classList.remove('visible');
 
-    groupCode = genCode();
-    document.getElementById('created-code').textContent = groupCode;
-    document.getElementById('create-code-card').classList.add('visible');
-    document.getElementById('create-loader').classList.add('visible');
-    document.getElementById('loader-msg').textContent = 'Finding restaurants';
-
     const filters = { location: loc, distance: dist, groupSize: size, mealtime: meal, price, cuisine, rating, dietary, openNow };
 
     try {
+      // 0. Find a group code that isn't already taken (retry a few times on collision)
+      groupCode = null;
+      for (let attempt = 0; attempt < 5 && !groupCode; attempt++) {
+        const candidate = genCode();
+        const snap = await get(ref(db, `groups/${candidate}`));
+        if (!snap.exists()) groupCode = candidate;
+      }
+      if (!groupCode) throw new Error('Could not generate a unique group code. Please try again.');
+
+      document.getElementById('created-code').textContent = groupCode;
+      document.getElementById('create-code-card').classList.add('visible');
+      document.getElementById('create-loader').classList.add('visible');
+      document.getElementById('loader-msg').textContent = 'Finding restaurants';
+
       // 1. Save group shell immediately (so joiners can find the code right away)
       // Each child has its own write-once rule, so it must be set at its own
       // path — a single set() at the group root isn't authorized by either rule.
@@ -884,13 +899,21 @@
       const total     = groupSize || '?';
       const label     = document.getElementById(labelId);
       const pips      = document.getElementById(pipsId);
-      if (label) label.innerHTML = `<strong>${joined} of ${total}</strong> people have joined`;
+      if (label) {
+        label.textContent = '';
+        const strong = document.createElement('strong');
+        strong.textContent = `${joined} of ${total}`;
+        label.appendChild(strong);
+        label.appendChild(document.createTextNode(' people have joined'));
+      }
       if (pips && groupSize) {
-        pips.innerHTML = Array.from({length: groupSize}, (_, i) =>
-          `<div class="wr-pip${i < joined ? ' joined' : ''}">
-            ${i < joined ? '&#10003;' : (i + 1)}
-          </div>`
-        ).join('');
+        pips.textContent = '';
+        for (let i = 0; i < groupSize; i++) {
+          const pip = document.createElement('div');
+          pip.className = `wr-pip${i < joined ? ' joined' : ''}`;
+          pip.textContent = i < joined ? '✓' : String(i + 1);
+          pips.appendChild(pip);
+        }
       }
     });
   }
@@ -975,25 +998,43 @@
     el.className  = 'swipe-card';
     el.dataset.id = r.id;
 
-    const imgSrc = getPhotoSrc(r);
-    const rating  = r.rating   ? `<span class="chip chip-rating">&#9733; ${r.rating}</span>` : '';
-    const price   = r.price    ? `<span class="chip chip-price">${r.price}</span>`    : '';
-    const cuisine = r.cuisine  ? `<span class="chip">${r.cuisine}</span>`              : '';
-    // Pull neighbourhood from address (second-to-last comma segment)
-    const parts  = (r.address || '').split(',');
-    const area   = parts.length > 2 ? parts[parts.length - 3]?.trim() : '';
-    const loc    = area ? `<span class="chip">${area}</span>` : '';
+    const img = document.createElement('img');
+    img.className = 'card-photo';
+    img.src = getPhotoSrc(r);
+    img.alt = r.name || '';
+    img.loading = 'lazy';
 
-    el.innerHTML = `
-      <img class="card-photo" src="${imgSrc}" alt="${r.name}" loading="lazy" />
-      <div class="card-scrim"></div>
-      <div class="card-body">
-        <div class="card-name">${r.name}</div>
-        <div class="card-chips">${rating}${price}${cuisine}${loc}</div>
-      </div>
-      <div class="stamp stamp-yum">YUM</div>
-      <div class="stamp stamp-nope">NOPE</div>
-    `;
+    const scrim = document.createElement('div');
+    scrim.className = 'card-scrim';
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = r.name || '';
+
+    const chips = document.createElement('div');
+    chips.className = 'card-chips';
+    if (r.rating)  chips.appendChild(chipEl('chip', `★ ${r.rating}`, 'chip-rating'));
+    if (r.price)   chips.appendChild(chipEl('chip', r.price, 'chip-price'));
+    if (r.cuisine) chips.appendChild(chipEl('chip', r.cuisine));
+    // Pull neighbourhood from address (second-to-last comma segment)
+    const parts = (r.address || '').split(',');
+    const area  = parts.length > 2 ? parts[parts.length - 3]?.trim() : '';
+    if (area) chips.appendChild(chipEl('chip', area));
+
+    body.append(name, chips);
+
+    const stampYum = document.createElement('div');
+    stampYum.className = 'stamp stamp-yum';
+    stampYum.textContent = 'YUM';
+
+    const stampNope = document.createElement('div');
+    stampNope.className = 'stamp stamp-nope';
+    stampNope.textContent = 'NOPE';
+
+    el.append(img, scrim, body, stampYum, stampNope);
     return el;
   }
 
@@ -1097,12 +1138,11 @@
     document.getElementById('match-link').href        = r.mapsUrl || '#';
 
     // Chips row: rating, price, cuisine
-    const chips = [
-      r.rating  ? `<span class="match-chip match-chip-gold">&#9733; ${r.rating}</span>` : '',
-      r.price   ? `<span class="match-chip match-chip-gold">${r.price}</span>` : '',
-      r.cuisine ? `<span class="match-chip">${r.cuisine}</span>` : '',
-    ].join('');
-    document.getElementById('match-chips').innerHTML = chips;
+    const chipsEl = document.getElementById('match-chips');
+    chipsEl.textContent = '';
+    if (r.rating)  chipsEl.appendChild(chipEl('match-chip', `★ ${r.rating}`, 'match-chip-gold'));
+    if (r.price)   chipsEl.appendChild(chipEl('match-chip', r.price, 'match-chip-gold'));
+    if (r.cuisine) chipsEl.appendChild(chipEl('match-chip', r.cuisine));
 
     // Full address (trim leading/trailing commas and spaces)
     const addr = (r.address || '').replace(/^,\s*|,\s*$/g, '').trim();
