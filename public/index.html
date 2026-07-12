@@ -2,8 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Stop arguing about where to eat. Swipe, match, and decide together." />
   <title>MunchMatch</title>
+
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#F07020" />
+
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MunchMatch" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -75,6 +86,14 @@
       backdrop-filter: blur(8px);
     }
     .home-stat.loaded { opacity: 1; }
+    .ios-hint {
+      display: none; align-items: center; justify-content: center; gap: 0.4rem;
+      margin-top: 0.9rem; padding: 0.6em 1.1em;
+      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
+      border-radius: 100px; font-size: 0.78rem; color: var(--muted);
+      text-align: center; backdrop-filter: blur(8px);
+    }
+    .ios-hint.visible { display: flex; }
     .stat-dot {
       width: 6px; height: 6px; border-radius: 50%;
       background: var(--green); box-shadow: 0 0 5px var(--green); flex-shrink: 0;
@@ -129,7 +148,9 @@
 
     /* ── FORM SCREENS ── */
     .screen-header {
-      display: flex; align-items: center; padding: 1.1rem 1.4rem;
+      display: flex; align-items: center;
+      padding: 1.1rem 1.4rem;
+      padding-top: max(1.1rem, env(safe-area-inset-top));
       border-bottom: 1px solid var(--border); gap: 0.9rem; flex-shrink: 0;
       background: var(--bg);
     }
@@ -151,6 +172,7 @@
     }
     .form-footer {
       padding: 1rem 1.4rem 1.75rem; flex-shrink: 0;
+      padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
       max-width: 460px; margin: 0 auto; width: 100%;
       display: flex; flex-direction: column; gap: 0.6rem;
     }
@@ -269,6 +291,7 @@
     .swipe-topbar {
       display: flex; justify-content: space-between; align-items: center;
       padding: 0.9rem 1.4rem; flex-shrink: 0;
+      padding-top: max(0.9rem, env(safe-area-inset-top));
       border-bottom: 1px solid var(--border);
     }
     .swipe-logo { font-family: var(--fd); font-weight: 400; font-size: 1rem; font-style: italic; }
@@ -287,6 +310,7 @@
       position: absolute;
       width: min(320px, calc(100vw - 2.5rem));
       height: min(460px, calc(100vh - 210px));
+      height: min(460px, calc(100dvh - 210px));
       border-radius: 22px; overflow: hidden;
       cursor: grab; user-select: none;
       box-shadow: 0 16px 48px rgba(60,30,10,0.18), 0 4px 12px rgba(60,30,10,0.1);
@@ -322,6 +346,7 @@
     .swipe-actions {
       display: flex; justify-content: center; align-items: center;
       gap: 1.4rem; padding: 1rem 1.4rem 1.5rem; flex-shrink: 0;
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
     }
     .act {
       border-radius: 50%; border: 1.5px solid var(--border);
@@ -414,6 +439,8 @@
   <div class="error-pill" id="auth-error" style="margin-top:0.9rem;">
     ✕ &nbsp;Couldn't connect. <a href="#" onclick="retryAuth(); return false;" style="color:inherit;text-decoration:underline;margin-left:0.3em;">Tap to retry</a>
   </div>
+  <button class="btn btn-secondary" id="install-btn" style="display:none; margin-top:0.9rem;" onclick="promptInstall()">&#8681; Add to Home Screen</button>
+  <div class="ios-hint" id="ios-hint">Install MunchMatch: tap <strong>&nbsp;Share&nbsp;</strong> then <strong>&nbsp;Add to Home Screen&nbsp;</strong></div>
 </div>
 
 <!-- ── CREATE ── -->
@@ -716,6 +743,40 @@
   let matchFound  = false;
   let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
   let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
+
+  // ── PWA: install prompt ───────────────────────────────────────────────────
+  let deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    document.getElementById('install-btn').style.display = 'flex';
+  });
+
+  window.promptInstall = async function() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('install-btn').style.display = 'none';
+  };
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    document.getElementById('install-btn').style.display = 'none';
+  });
+
+  // iOS Safari never fires beforeinstallprompt, so the button above never
+  // appears there — show a manual "tap Share" instruction instead.
+  (function showIOSInstallHint() {
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+    const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (isSafari && !isStandalone) {
+      document.getElementById('ios-hint').classList.add('visible');
+    }
+  })();
 
   // ── Copy join link ────────────────────────────────────────────────────────
   window.copyGroupLink = function() {
@@ -1328,6 +1389,13 @@
       if (++f < 240) requestAnimationFrame(draw);
       else cx.clearRect(0, 0, cv.width, cv.height);
     })();
+  }
+
+  // ── PWA: service worker (app-shell caching only) ─────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+    });
   }
 </script>
 </body>
