@@ -8,6 +8,14 @@ const config: CapacitorConfig = {
   // dist/ output, never the live Firebase Hosting site. No cleartext
   // traffic exception and no navigation allowlist beyond Capacitor's
   // own defaults (the app only ever talks to Firebase over HTTPS).
+  plugins: {
+    SplashScreen: {
+      // Matches manifest.webmanifest's background_color / the generated
+      // splash image's background, so there's no white flash beforehand.
+      backgroundColor: '#FBF6EF',
+      androidScaleType: 'CENTER_CROP',
+    },
+  },
 };
 
 export default config;

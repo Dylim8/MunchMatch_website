@@ -755,10 +755,23 @@
   let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
   let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
 
+  // ── Native app detection (Capacitor) ─────────────────────────────────────
+  // window.Capacitor is injected automatically by the native Android/iOS
+  // shell's bridge script before this module runs — it does not exist in the
+  // regular website/PWA context, where isNativeApp correctly evaluates false.
+  // No @capacitor/core import needed since there's no bundler in this project;
+  // this is Capacitor's own supported pattern for non-bundled web apps.
+  const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+  // Canonical origin for join links and native deep-link validation — never
+  // window.location.origin, which inside the native shell is capacitor://localhost.
+  const MUNCHMATCH_WEB_ORIGIN = 'https://munchmatch-9e2fe.web.app';
+
   // ── PWA: install prompt ───────────────────────────────────────────────────
   let deferredInstallPrompt = null;
 
   window.addEventListener('beforeinstallprompt', (e) => {
+    if (isNativeApp) return; // never show install UI inside the native app
     e.preventDefault();
     deferredInstallPrompt = e;
     document.getElementById('install-btn').style.display = 'flex';
@@ -780,6 +793,7 @@
   // iOS Safari never fires beforeinstallprompt, so the button above never
   // appears there — show a manual "tap Share" instruction instead.
   (function showIOSInstallHint() {
+    if (isNativeApp) return; // never show the manual install hint inside the native app
     const ua = navigator.userAgent;
     const isIOS = /iPad|iPhone|iPod/.test(ua);
     const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
@@ -793,7 +807,7 @@
   window.copyGroupLink = function() {
     const code = document.getElementById('created-code').textContent;
     if (!code) return;
-    const url = window.location.origin + window.location.pathname + '?code=' + code;
+    const url = MUNCHMATCH_WEB_ORIGIN + '/?code=' + code;
     navigator.clipboard.writeText(url).then(() => {
       const btn = document.getElementById('copy-link-btn');
       btn.innerHTML = '&#10003; Copied!';
@@ -836,6 +850,46 @@
     document.getElementById('j-code').value = code.toUpperCase();
     setTimeout(() => joinGroup(), 350);
   })();
+
+  // ── Native deep links (Capacitor) ────────────────────────────────────────
+  // Reuses the same joinGroup() flow as the web ?code= handler above — no
+  // separate native join implementation. Strict origin + format validation
+  // since this URL is attacker-influenced (arrives via an OS-level intent).
+  if (isNativeApp) {
+    const CapApp = window.Capacitor.Plugins.App;
+
+    const handleDeepLink = (url) => {
+      let parsed;
+      try { parsed = new URL(url); } catch { return; }
+      if (parsed.origin !== MUNCHMATCH_WEB_ORIGIN) return;
+      const code = (parsed.searchParams.get('code') || '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{6}$/.test(code)) return;
+      nav('screen-join');
+      document.getElementById('j-code').value = code;
+      setTimeout(() => joinGroup(), 350);
+    };
+
+    CapApp.addListener('appUrlOpen', (data) => handleDeepLink(data.url));
+    CapApp.getLaunchUrl().then((result) => { if (result?.url) handleDeepLink(result.url); });
+
+    // Android hardware back button: navigate within the app's existing
+    // screens (reusing the same targets as the on-screen ← buttons) rather
+    // than letting the OS default of minimizing/exiting fire unexpectedly
+    // mid-flow. Any other screen falls through to the default exit behavior.
+    const BACK_BUTTON_TARGETS = { 'screen-create': 'screen-home', 'screen-join': 'screen-home' };
+    CapApp.addListener('backButton', () => {
+      const current = document.querySelector('.screen.active')?.id;
+      const target = BACK_BUTTON_TARGETS[current];
+      if (target) nav(target);
+      else CapApp.exitApp();
+    });
+
+    // Extend the WebView under the status bar so the existing
+    // env(safe-area-inset-*) CSS padding (already built for iOS PWA
+    // fullscreen mode) applies consistently on native too, instead of the
+    // status bar reserving its own space and leaving that CSS inert.
+    window.Capacitor.Plugins.StatusBar?.setOverlaysWebView({ overlay: true }).catch(() => {});
+  }
 
   window.goSwipe = function() {
     nav('screen-swipe');
@@ -1189,7 +1243,7 @@
     const onEnd = () => {
       if (!active) return; active = false;
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-      if (Math.abs(dx) > 88) {
+      if (Math.abs(dx) > 88 && !swipeCommitInFlight) {
         ejectCard(card, dx > 0 ? 'right' : 'left');
       } else {
         card.style.transition = 'transform 0.42s cubic-bezier(0.34,1.56,0.64,1)';
@@ -1219,20 +1273,31 @@
     document.addEventListener('touchend',  onEnd);
   }
 
+  // Guards against a second swipe starting before the previous one's write
+  // has been confirmed — without this, two concurrent in-flight writes could
+  // resolve out of order and corrupt which restaurant idx points at on failure.
+  let swipeCommitInFlight = false;
+
+  function setSwipeControlsEnabled(enabled) {
+    document.querySelectorAll('#swipe-ui .act').forEach(btn => { btn.disabled = !enabled; });
+  }
+
   function ejectCard(card, dir) {
     card._dragCleanup?.();
     card.classList.add('ejecting'); // tells renderStack() to leave this element alone — it cleans itself up below
     const x = dir === 'right' ? innerWidth * 1.6 : -innerWidth * 1.6;
     card.style.transition = 'transform 0.32s ease-out';
     card.style.transform  = `translateX(${x}px) rotate(${dir === 'right' ? 18 : -18}deg)`;
-    setTimeout(() => card.remove(), 320);
+    card._ejectTimeoutId = setTimeout(() => card.remove(), 320);
     // Fired immediately (not after the fly-off finishes) so the cards behind
     // it start growing into place in parallel with this card leaving, rather
-    // than waiting for it to finish first.
-    commitSwipe(dir);
+    // than waiting for it to finish first — but only once the write actually
+    // succeeds; see commitSwipe().
+    commitSwipe(dir, card);
   }
 
   window.triggerSwipe = function(dir) {
+    if (swipeCommitInFlight) return;
     const card = document.querySelector('#card-stack .front:not(.ejecting)');
     if (!card) return;
     card.querySelector('.stamp-yum').style.opacity  = dir === 'right' ? 1 : 0;
@@ -1240,13 +1305,44 @@
     ejectCard(card, dir);
   };
 
-  function commitSwipe(dir) {
+  // Retries transient failures (e.g. a brief network drop) before giving up —
+  // a swipe must never silently vanish just because one write attempt failed.
+  async function writeSwipeWithRetry(rid, value, attempts = 3) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await set(ref(db, `groups/${groupCode}/swipes/${userId}/${rid}`), value);
+        return;
+      } catch (e) {
+        if (i === attempts - 1) throw e;
+        await new Promise(res => setTimeout(res, 400 * (i + 1)));
+      }
+    }
+  }
+
+  async function commitSwipe(dir, card) {
     const r = restaurants[idx];
     if (!r) return;
-    set(ref(db, `groups/${groupCode}/swipes/${userId}/${r.id}`),
-        dir === 'right' ? 'like' : 'dislike');
-    idx++;
-    renderStack();
+    swipeCommitInFlight = true;
+    setSwipeControlsEnabled(false);
+    try {
+      await writeSwipeWithRetry(r.id, dir === 'right' ? 'like' : 'dislike');
+      idx++;
+    } catch (e) {
+      // Write never went through — undo the visual eject so the same
+      // restaurant reappears as the front card instead of being skipped.
+      clearTimeout(card._ejectTimeoutId);
+      card.classList.remove('ejecting');
+      card.style.transition = 'none';
+      card.style.transform  = '';
+      const msg = navigator.onLine === false
+        ? "You're offline — your swipe wasn't saved. Reconnect and try again."
+        : "Your swipe couldn't be saved — please try again.";
+      alert(msg);
+    } finally {
+      swipeCommitInFlight = false;
+      setSwipeControlsEnabled(true);
+      renderStack();
+    }
   }
 
   function updateProgress() {
@@ -1300,6 +1396,28 @@
     nav('screen-match');
     launchConfetti();
   }
+
+  // ── Safe external link opening (Google Maps) ─────────────────────────────
+  // r.mapsUrl is server-supplied (from the Places API response or a
+  // constructed google.com fallback — see functions/index.js), but we still
+  // validate scheme+host before navigating anywhere, and route through
+  // Capacitor's Browser plugin in the native app rather than the WebView.
+  const SAFE_MAPS_HOSTS = new Set(['www.google.com', 'maps.google.com', 'goo.gl', 'maps.app.goo.gl']);
+  function isSafeMapsUrl(url) {
+    try {
+      const u = new URL(url, MUNCHMATCH_WEB_ORIGIN);
+      return u.protocol === 'https:' && SAFE_MAPS_HOSTS.has(u.hostname);
+    } catch { return false; }
+  }
+  document.getElementById('match-link').addEventListener('click', (e) => {
+    const url = e.currentTarget.getAttribute('href');
+    if (!isSafeMapsUrl(url)) { e.preventDefault(); return; }
+    if (isNativeApp) {
+      e.preventDefault();
+      window.Capacitor.Plugins.Browser.open({ url });
+    }
+    // else: default <a target="_blank"> behavior handles it on web/PWA
+  });
 
   // ── Fortune cookie easter egg ──────────────────────────────────────────────
   const FORTUNES = [
@@ -1427,7 +1545,7 @@
   }
 
   // ── PWA: service worker (app-shell caching only) ─────────────────────────
-  if ('serviceWorker' in navigator) {
+  if (!isNativeApp && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
     });

@@ -10,6 +10,11 @@ firebase-debug.*.log*
 # Firebase cache
 .firebase/
 
+# JetBrains IDE workspace state (Android Studio) — local machine paths,
+# device manager state, etc. Matches at any depth, so this also covers
+# android/.idea/ without needing a separate entry there.
+.idea/
+
 # Firebase config
 
 # Uncomment this if you'd like others to create their own Firebase project.

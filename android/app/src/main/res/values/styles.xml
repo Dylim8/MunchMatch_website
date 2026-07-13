@@ -18,5 +18,12 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- This theme governs the activity for its whole lifetime, not just
+             the splash — without an explicit windowBackground here it falls
+             back to Theme.SplashScreen's default (white), which shows through
+             at the screen edges under edge-to-edge status/navigation bars. -->
+        <item name="android:windowBackground">@color/brandBackground</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>
