@@ -540,6 +540,13 @@
         </label>
       </div>
     </div>
+    <div class="field toggle-field">
+      <label>Allow Redo Swipes</label>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="c-swipe-again" />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </label>
+    </div>
     <div class="code-reveal" id="create-code-card">
       <div class="code-label">Your group code</div>
       <div class="code-value" id="created-code"></div>
@@ -638,7 +645,7 @@
   <div class="swipe-overlay-state" id="swipe-done" style="display:none">
     <div class="overlay-title">You've seen them all!</div>
     <div class="overlay-sub">Waiting for the rest of your group&hellip;</div>
-    <button class="btn btn-secondary" style="margin-top:0.5rem" onclick="swipeAgain()">Swipe Again</button>
+    <button class="btn btn-secondary" id="swipe-again-btn" style="margin-top:0.5rem" onclick="swipeAgain()">Redo My Swipes</button>
   </div>
   <div id="swipe-ui" style="display:flex;flex-direction:column;flex:1;">
     <div class="card-stack" id="card-stack"></div>
@@ -744,6 +751,7 @@
   let restaurants = [];
   let idx         = 0;
   let matchFound  = false;
+  let allowSwipeAgain = false; // per-group setting, off by default — set in createGroup()/joinGroup()
   let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
   let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
 
@@ -858,6 +866,7 @@
     const rating  = document.getElementById('c-rating').value;
     const dietary = document.getElementById('c-dietary').value;
     const openNow = document.getElementById('c-open').checked;
+    const swipeAgainAllowed = document.getElementById('c-swipe-again').checked;
 
     if (!loc || !size || size < 2) {
       alert('Please enter a location and group size (minimum 2).'); return;
@@ -881,9 +890,10 @@
       // there's nothing to show until the server returns.
       const result = await createGroupFn({
         location: loc, distance: dist, groupSize: size, mealtime: meal,
-        price, cuisine, rating, dietary, openNow,
+        price, cuisine, rating, dietary, openNow, allowSwipeAgain: swipeAgainAllowed,
       });
       groupCode = result.data.groupCode;
+      allowSwipeAgain = swipeAgainAllowed;
 
       loadCounter(); // refresh badge — server already incremented it
 
@@ -929,6 +939,7 @@
       if (!rList.length) throw new Error('Restaurants still loading, try again in a moment.');
 
       groupCode = code;
+      allowSwipeAgain = data.filters?.allowSwipeAgain === true;
 
       // Register as a present member — routed through a Cloud Function so
       // capacity is enforced atomically server-side, and repeat joins are a
@@ -1067,7 +1078,11 @@
     updateProgress();
     // Note: intentionally not touching stack.innerHTML here even when done —
     // a card mid-eject (see below) needs to keep flying off on its own.
-    if (idx >= restaurants.length) { setSwipeState('done'); return; }
+    if (idx >= restaurants.length) {
+      document.getElementById('swipe-again-btn').style.display = allowSwipeAgain ? '' : 'none';
+      setSwipeState('done');
+      return;
+    }
 
     const indices = [idx + 2, idx + 1, idx].filter(i => i < restaurants.length);
     const classes = ['back-2', 'back-1', 'front'];

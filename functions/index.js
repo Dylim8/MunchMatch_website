@@ -269,6 +269,7 @@ exports.createGroup = onCall({ secrets: [PLACES_KEY] }, async (request) => {
   const rating    = RATING_OPTIONS.includes(String(request.data?.rating ?? "")) ? String(request.data.rating ?? "") : "";
   const dietary   = request.data?.dietary === "vegan" ? "vegan" : "";
   const openNow   = request.data?.openNow === true;
+  const allowSwipeAgain = request.data?.allowSwipeAgain === true;
 
   await checkRateLimit(db, uid);
   const groupCode = await reserveGroupCode(db, uid);
@@ -285,7 +286,7 @@ exports.createGroup = onCall({ secrets: [PLACES_KEY] }, async (request) => {
   }
 
   await db.ref().update({
-    [`groups/${groupCode}/filters`]:        { location, distance, groupSize, mealtime, price, cuisine, rating, dietary, openNow },
+    [`groups/${groupCode}/filters`]:        { location, distance, groupSize, mealtime, price, cuisine, rating, dietary, openNow, allowSwipeAgain },
     [`groups/${groupCode}/restaurants`]:    restaurants,
     [`groups/${groupCode}/members/${uid}`]: { joinedAt: Date.now(), status: "waiting" },
     [`groups/${groupCode}/state`]:          "ready",
