@@ -15,6 +15,9 @@ firebase-debug.*.log*
 # android/.idea/ without needing a separate entry there.
 .idea/
 
+# macOS Finder metadata
+.DS_Store
+
 # Firebase config
 
 # Uncomment this if you'd like others to create their own Firebase project.
