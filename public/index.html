@@ -314,8 +314,10 @@
       height: min(460px, calc(100dvh - 210px));
       border-radius: 22px; overflow: hidden;
       cursor: grab; user-select: none;
+      touch-action: none;
       box-shadow: 0 16px 48px rgba(60,30,10,0.18), 0 4px 12px rgba(60,30,10,0.1);
       will-change: transform;
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
     }
     .swipe-card:active { cursor: grabbing; }
     .swipe-card.back-2 { transform: scale(0.89) translateY(28px); z-index: 1; }
@@ -672,7 +674,7 @@
 <script type="module">
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-  import { getDatabase, ref, get, set, child, onValue, runTransaction }
+  import { getDatabase, ref, get, set, child, onValue }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
   import { getFunctions, httpsCallable }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-functions.js";
@@ -692,7 +694,7 @@
   });
   const db              = getDatabase(app);
   const functions       = getFunctions(app);
-  const fetchPlacesFn   = httpsCallable(functions, 'fetchRestaurants');
+  const createGroupFn    = httpsCallable(functions, 'createGroup');
   const registerMemberFn = httpsCallable(functions, 'joinGroup');
   const auth            = getAuth(app);
 
@@ -795,12 +797,6 @@
     }).catch(() => { prompt('Copy this link:', url); });
   };
 
-  // ── Utilities ─────────────────────────────────────────────────────────────
-  function genCode(n = 6) {
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return Array.from({length: n}, () => c[Math.floor(Math.random() * c.length)]).join('');
-  }
-
   // Photo URIs are resolved server-side and stored as direct CDN URLs — no key needed
   function getPhotoSrc(r) { return r.photoUri || ''; }
 
@@ -849,12 +845,6 @@
     } catch { /* counter is a nice-to-have, fail silently */ }
   }
 
-  async function incrementCounter() {
-    try {
-      await runTransaction(ref(db, 'meta/partiesHelped'), n => (n || 0) + 1);
-    } catch(e) { console.warn('Counter error:', e); }
-  }
-
   loadCounter();
 
   // ── Create Group ──────────────────────────────────────────────────────────
@@ -876,49 +866,30 @@
     const btn = document.getElementById('create-btn');
     btn.disabled = true;
     document.getElementById('create-error').classList.remove('visible');
-
-    const filters = { location: loc, distance: dist, groupSize: size, mealtime: meal, price, cuisine, rating, dietary, openNow };
+    document.getElementById('create-loader').classList.add('visible');
+    document.getElementById('loader-msg').textContent = 'Creating your group';
 
     try {
       await authReadyPromise;
 
-      // 0. Find a group code that isn't already taken (retry a few times on collision)
-      groupCode = null;
-      for (let attempt = 0; attempt < 5 && !groupCode; attempt++) {
-        const candidate = genCode();
-        const snap = await get(ref(db, `groups/${candidate}`));
-        if (!snap.exists()) groupCode = candidate;
-      }
-      if (!groupCode) throw new Error('Could not generate a unique group code. Please try again.');
+      // Group creation is fully server-controlled: code generation, collision
+      // handling, filter validation, the Places lookup, the host's member
+      // record, and the public counter all happen inside the createGroup
+      // Cloud Function under the Admin SDK. The client can no longer write
+      // any of those fields directly (see database.rules.json) — this also
+      // means the code can't appear until the whole thing finishes, since
+      // there's nothing to show until the server returns.
+      const result = await createGroupFn({
+        location: loc, distance: dist, groupSize: size, mealtime: meal,
+        price, cuisine, rating, dietary, openNow,
+      });
+      groupCode = result.data.groupCode;
 
-      document.getElementById('created-code').textContent = groupCode;
-      document.getElementById('create-code-card').classList.add('visible');
-      document.getElementById('create-loader').classList.add('visible');
-      document.getElementById('loader-msg').textContent = 'Finding restaurants';
-
-      // 1. Save group shell immediately (so joiners can find the code right away)
-      // Each child has its own write-once rule, so it must be set at its own
-      // path — a single set() at the group root isn't authorized by either rule.
-      await set(ref(db, `groups/${groupCode}/filters`), filters);
-      await set(ref(db, `groups/${groupCode}/createdAt`), new Date().toISOString());
-
-      // 2. Call the Cloud Function — Places API key never touches the browser
-      const result = await fetchPlacesFn({ location: loc, distance: dist, mealtime: meal, price, cuisine, rating, dietary, openNow });
-      const rList  = result.data;
-      if (!rList.length) throw new Error('No restaurants returned for that location.');
-
-      // 3. Save results
-      await set(ref(db, `groups/${groupCode}/restaurants`), rList);
-
-      // 4. Register the host as a present member right away — routed through
-      // a Cloud Function so capacity is enforced atomically server-side
-      await registerMemberFn({ groupCode });
-
-      // 5. Increment the global metric
-      await incrementCounter();
-      loadCounter(); // refresh badge without waiting
+      loadCounter(); // refresh badge — server already incremented it
 
       lobbyScreenId = 'screen-create';
+      document.getElementById('created-code').textContent = groupCode;
+      document.getElementById('create-code-card').classList.add('visible');
       document.getElementById('create-loader').classList.remove('visible');
       document.getElementById('create-go-btn').style.display = 'flex';
       document.getElementById('create-waiting-room').classList.add('visible');
@@ -1092,20 +1063,41 @@
 
   function renderStack() {
     const stack = document.getElementById('card-stack');
-    stack.innerHTML = '';
+    stack.querySelector('.front:not(.ejecting)')?._dragCleanup?.(); // safety net in case a card is replaced without going through ejectCard()
     updateProgress();
+    // Note: intentionally not touching stack.innerHTML here even when done —
+    // a card mid-eject (see below) needs to keep flying off on its own.
     if (idx >= restaurants.length) { setSwipeState('done'); return; }
 
     const indices = [idx + 2, idx + 1, idx].filter(i => i < restaurants.length);
     const classes = ['back-2', 'back-1', 'front'];
     const offset  = classes.length - indices.length;
+    const targetIds = new Set(indices.map(i => restaurants[i].id));
 
-    indices.forEach((ri, pos) => {
-      const card = makeCard(restaurants[ri]);
-      card.classList.add(classes[pos + offset]);
-      stack.appendChild(card);
+    // Drop cards no longer in the stack — except one currently mid-eject,
+    // which removes itself once its own fly-off animation finishes (see
+    // ejectCard()), running in parallel with the promotion animation below.
+    stack.querySelectorAll('.swipe-card').forEach(el => {
+      if (!targetIds.has(el.dataset.id) && !el.classList.contains('ejecting')) el.remove();
     });
-    bindDrag(stack.querySelector('.front'));
+
+    // Reuse existing cards for restaurants still in the stack — reassigning
+    // their class (not recreating the element) lets the base CSS transition
+    // animate back-2 → back-1 → front smoothly instead of popping into place.
+    // Only the newly-revealed back-2 slot needs a freshly created card.
+    const existingById = new Map(
+      Array.from(stack.querySelectorAll('.swipe-card')).map(el => [el.dataset.id, el])
+    );
+    indices.forEach((ri, pos) => {
+      const r = restaurants[ri];
+      let card = existingById.get(r.id);
+      if (!card) {
+        card = makeCard(r);
+        stack.appendChild(card);
+      }
+      card.className = `swipe-card ${classes[pos + offset]}`;
+    });
+    bindDrag(stack.querySelector('.front:not(.ejecting)'));
   }
 
   function makeCard(r) {
@@ -1156,31 +1148,52 @@
   // ── Drag gesture ──────────────────────────────────────────────────────────
   function bindDrag(card) {
     if (!card) return;
-    let sx = 0, sy = 0, active = false, dx = 0;
+    let sx = 0, sy = 0, active = false, dx = 0, dy = 0, rafId = null;
 
     const px = e => e.touches ? e.touches[0].clientX : e.clientX;
     const py = e => e.touches ? e.touches[0].clientY : e.clientY;
+    const stampYum  = card.querySelector('.stamp-yum');
+    const stampNope = card.querySelector('.stamp-nope');
+
+    // Rapid touchmove events are coalesced into a single style write per
+    // frame instead of one per event — avoids layout thrashing on mobile.
+    function paint() {
+      rafId = null;
+      card.style.transform = `translateX(${dx}px) translateY(${dy}px) rotate(${dx * 0.075}deg)`;
+      stampYum.style.opacity  = dx > 0 ? Math.min(dx / 75, 1) : 0;
+      stampNope.style.opacity = dx < 0 ? Math.min(-dx / 75, 1) : 0;
+    }
 
     const onStart = e => { active = true; sx = px(e); sy = py(e); card.style.transition = 'none'; };
     const onMove  = e => {
       if (!active) return;
       dx = px(e) - sx;
-      const dy = (py(e) - sy) * 0.25;
-      card.style.transform = `translateX(${dx}px) translateY(${dy}px) rotate(${dx * 0.075}deg)`;
-      card.querySelector('.stamp-yum').style.opacity  = dx > 0 ? Math.min(dx / 75, 1) : 0;
-      card.querySelector('.stamp-nope').style.opacity = dx < 0 ? Math.min(-dx / 75, 1) : 0;
+      dy = (py(e) - sy) * 0.25;
+      if (rafId === null) rafId = requestAnimationFrame(paint);
     };
     const onEnd = () => {
       if (!active) return; active = false;
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (Math.abs(dx) > 88) {
         ejectCard(card, dx > 0 ? 'right' : 'left');
       } else {
         card.style.transition = 'transform 0.42s cubic-bezier(0.34,1.56,0.64,1)';
         card.style.transform  = '';
-        card.querySelector('.stamp-yum').style.opacity  = 0;
-        card.querySelector('.stamp-nope').style.opacity = 0;
+        stampYum.style.opacity  = 0;
+        stampNope.style.opacity = 0;
       }
       dx = 0;
+      // Deliberately NOT cleaning up listeners here on a snap-back — the
+      // same card stays the front card and must remain draggable for a
+      // second attempt. Cleanup happens once, when the card is actually
+      // replaced (see renderStack()).
+    };
+
+    card._dragCleanup = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('mouseup',   onEnd);
+      document.removeEventListener('touchend',  onEnd);
     };
 
     card.addEventListener('mousedown',  onStart);
@@ -1192,14 +1205,20 @@
   }
 
   function ejectCard(card, dir) {
+    card._dragCleanup?.();
+    card.classList.add('ejecting'); // tells renderStack() to leave this element alone — it cleans itself up below
     const x = dir === 'right' ? innerWidth * 1.6 : -innerWidth * 1.6;
     card.style.transition = 'transform 0.32s ease-out';
     card.style.transform  = `translateX(${x}px) rotate(${dir === 'right' ? 18 : -18}deg)`;
-    setTimeout(() => commitSwipe(dir), 320);
+    setTimeout(() => card.remove(), 320);
+    // Fired immediately (not after the fly-off finishes) so the cards behind
+    // it start growing into place in parallel with this card leaving, rather
+    // than waiting for it to finish first.
+    commitSwipe(dir);
   }
 
   window.triggerSwipe = function(dir) {
-    const card = document.querySelector('#card-stack .front');
+    const card = document.querySelector('#card-stack .front:not(.ejecting)');
     if (!card) return;
     card.querySelector('.stamp-yum').style.opacity  = dir === 'right' ? 1 : 0;
     card.querySelector('.stamp-nope').style.opacity = dir === 'left'  ? 1 : 0;

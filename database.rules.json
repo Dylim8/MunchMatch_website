@@ -3,8 +3,7 @@
     "meta": {
       "partiesHelped": {
         ".read": true,
-        ".write": true,
-        ".validate": "newData.isNumber()"
+        ".write": false
       }
     },
     "groups": {
@@ -12,14 +11,13 @@
         ".read": true,
 
         "filters": {
-          ".write": "!data.exists()",
-          ".validate": "newData.hasChildren(['location','groupSize'])"
+          ".write": false
         },
         "createdAt": {
-          ".write": "!data.exists()"
+          ".write": false
         },
         "restaurants": {
-          ".write": "!data.exists() && root.child('groups/'+$groupCode+'/filters').exists()"
+          ".write": false
         },
         "members": {
           "$uid": {
