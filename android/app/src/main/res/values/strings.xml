@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MunchMatch</string>
+    <string name="title_activity_main">MunchMatch</string>
+    <string name="package_name">com.munchmatch.app</string>
+    <string name="custom_url_scheme">com.munchmatch.app</string>
+</resources>

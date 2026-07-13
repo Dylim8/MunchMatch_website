@@ -47,6 +47,9 @@ build/Release
 # Dependency directories
 node_modules/
 
+# Capacitor build output (generated from public/ via `npm run build`)
+dist/
+
 # Optional npm cache directory
 .npm
 
