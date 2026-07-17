@@ -10,10 +10,13 @@
     // Applies the theme before first paint, so there is no flash of the wrong
     // theme. theme.js-equivalent logic below (in the main module script) only
     // needs to re-derive this for the change path: toggling, or the OS
-    // preference changing while the app is open.
+    // preference changing while "system" is explicitly selected. Light is
+    // the default until the user explicitly picks dark or system.
     (function() {
       var stored = localStorage.getItem('munchmatch:theme');
-      var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var theme = stored === 'dark' ? 'dark'
+        : stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : 'light';
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
@@ -804,20 +807,21 @@
   let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
   let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
 
-  // ── Theme: system, light, dark ───────────────────────────────────────────
+  // ── Theme: light (default), dark, system ─────────────────────────────────
   // The inline script in <head> already applied the correct data-theme
   // before first paint; this handles the change path only, tapping the
-  // toggle or the OS preference changing while the app is open. Only
-  // explicit light/dark choices are stored, system is represented by the
-  // absence of the key so a later OS-level change is still tracked live.
+  // toggle or the OS preference changing while "system" is explicitly
+  // selected. Light is the default until the user picks something else,
+  // so unlike a "system is default" scheme, every preference including
+  // light is stored explicitly rather than represented by absence.
   const THEME_KEY    = 'munchmatch:theme';
-  const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
-  const THEME_NEXT   = { system: 'light', light: 'dark', dark: 'system' };
+  const THEME_LABELS = { light: 'Light', dark: 'Dark', system: 'System' };
+  const THEME_NEXT   = { light: 'dark', dark: 'system', system: 'light' };
   const darkMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
   function currentThemePref() {
     const stored = localStorage.getItem(THEME_KEY);
-    return stored === 'light' || stored === 'dark' ? stored : 'system';
+    return stored === 'dark' || stored === 'system' ? stored : 'light';
   }
 
   function effectiveTheme(pref) {
@@ -832,8 +836,7 @@
 
   window.cycleTheme = function() {
     const next = THEME_NEXT[currentThemePref()];
-    if (next === 'system') localStorage.removeItem(THEME_KEY);
-    else localStorage.setItem(THEME_KEY, next);
+    localStorage.setItem(THEME_KEY, next);
     applyTheme(next);
   };
 
