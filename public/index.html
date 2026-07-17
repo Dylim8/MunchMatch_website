@@ -6,6 +6,18 @@
   <meta name="description" content="Stop arguing about where to eat. Swipe, match, and decide together." />
   <title>MunchMatch</title>
 
+  <script>
+    // Applies the theme before first paint, so there is no flash of the wrong
+    // theme. theme.js-equivalent logic below (in the main module script) only
+    // needs to re-derive this for the change path: toggling, or the OS
+    // preference changing while the app is open.
+    (function() {
+      var stored = localStorage.getItem('munchmatch:theme');
+      var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#F07020" />
 
@@ -33,8 +45,31 @@
       --green:     #2A9D6F;
       --cream:     #2C1A0E;
       --muted:     #A08878;
+      --glass:     rgba(255,255,255,0.7);
+      --pc2:       #F5EAD8;
+      --pc3:       #EDE0D0;
       --fd:        'DM Serif Display', serif;
       --fb:        'Nunito', sans-serif;
+    }
+
+    /* Dark theme: only the neutral tokens change. Accent, gold, and green
+       stay close to their light values (slightly brightened for contrast on
+       a dark background) so the brand color is doing the same work in both
+       themes instead of the page just going gray. */
+    :root[data-theme="dark"] {
+      --bg:        #1A1310;
+      --surface:   #221A15;
+      --card-bg:   #2B2119;
+      --raised:    #332619;
+      --border:    rgba(255,255,255,0.08);
+      --accent-lo: rgba(240,112,32,0.18);
+      --gold:      #E0A030;
+      --green:     #34B884;
+      --cream:     #F5EDE0;
+      --muted:     #B8A290;
+      --glass:     rgba(0,0,0,0.35);
+      --pc2:       #3A2C1E;
+      --pc3:       #443524;
     }
 
     html, body { height: 100%; overflow: hidden; }
@@ -46,6 +81,18 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 180px; opacity: 0.018; pointer-events: none; z-index: 9999;
     }
+
+    /* Theme toggle: fixed above every screen, cycles system, light, dark */
+    #theme-toggle-btn {
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
+      right: calc(env(safe-area-inset-right, 0px) + 0.9rem); z-index: 500;
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: 100px; padding: 0.4em 0.85em;
+      font-family: var(--fb); font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.03em; color: var(--muted); cursor: pointer;
+      backdrop-filter: blur(8px); transition: color 0.2s ease;
+    }
+    #theme-toggle-btn:hover { color: var(--cream); }
 
     /* ── SCREEN SYSTEM ── */
     .screen {
@@ -80,7 +127,7 @@
     .home-stat {
       margin-top: 0.85rem; position: relative; z-index: 1;
       display: inline-flex; align-items: center; gap: 0.45rem;
-      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
+      background: var(--glass); border: 1px solid var(--border);
       border-radius: 100px; padding: 0.35em 0.9em;
       font-size: 0.75rem; color: var(--muted);
       opacity: 0; transition: opacity 0.6s ease;
@@ -90,7 +137,7 @@
     .ios-hint {
       display: none; align-items: center; justify-content: center; gap: 0.4rem;
       margin-top: 0.9rem; padding: 0.6em 1.1em;
-      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
+      background: var(--glass); border: 1px solid var(--border);
       border-radius: 100px; font-size: 0.78rem; color: var(--muted);
       text-align: center; backdrop-filter: blur(8px);
     }
@@ -110,8 +157,8 @@
       position: absolute; left: 50%; border-radius: 14px;
       width: 170px; height: 80px; border: 1px solid var(--border);
     }
-    .pc3 { background: #EDE0D0; transform: translateX(-50%) translateY(14px) scale(0.88); z-index: 1; }
-    .pc2 { background: #F5EAD8; transform: translateX(-50%) translateY(7px) scale(0.94); z-index: 2; }
+    .pc3 { background: var(--pc3); transform: translateX(-50%) translateY(14px) scale(0.88); z-index: 1; }
+    .pc2 { background: var(--pc2); transform: translateX(-50%) translateY(7px) scale(0.94); z-index: 2; }
     .pc1 { background: var(--card-bg); transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; gap: 0.3rem; padding: 0 1rem; overflow: hidden; user-select: none; }
     .pc1:active { cursor: grabbing; }
     .pc1-text { font-family: var(--fd); font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.35; transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; }
@@ -194,8 +241,8 @@
       outline: none; border-color: rgba(240,112,32,0.5);
       box-shadow: 0 0 0 3px rgba(240,112,32,0.08);
     }
-    .field input::placeholder { color: #C8B4A4; }
-    .field select option { background: #fff; }
+    .field input::placeholder { color: var(--muted); }
+    .field select option { background: var(--card-bg); color: var(--cream); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
     .toggle-field { justify-content: space-between; flex-direction: row; align-items: center; padding: 0.8em 0.95em; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; }
     .toggle-field label:first-child { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
@@ -417,6 +464,8 @@
 <body>
 
 <canvas id="confetti"></canvas>
+
+<button id="theme-toggle-btn" onclick="cycleTheme()" aria-label="Change theme">Light</button>
 
 <!-- ── HOME ── -->
 <div id="screen-home" class="screen active">
@@ -754,6 +803,45 @@
   let allowSwipeAgain = false; // per-group setting, off by default — set in createGroup()/joinGroup()
   let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
   let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
+
+  // ── Theme: system, light, dark ───────────────────────────────────────────
+  // The inline script in <head> already applied the correct data-theme
+  // before first paint; this handles the change path only, tapping the
+  // toggle or the OS preference changing while the app is open. Only
+  // explicit light/dark choices are stored, system is represented by the
+  // absence of the key so a later OS-level change is still tracked live.
+  const THEME_KEY    = 'munchmatch:theme';
+  const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
+  const THEME_NEXT   = { system: 'light', light: 'dark', dark: 'system' };
+  const darkMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function currentThemePref() {
+    const stored = localStorage.getItem(THEME_KEY);
+    return stored === 'light' || stored === 'dark' ? stored : 'system';
+  }
+
+  function effectiveTheme(pref) {
+    return pref === 'system' ? (darkMediaQuery.matches ? 'dark' : 'light') : pref;
+  }
+
+  function applyTheme(pref) {
+    document.documentElement.setAttribute('data-theme', effectiveTheme(pref));
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = THEME_LABELS[pref];
+  }
+
+  window.cycleTheme = function() {
+    const next = THEME_NEXT[currentThemePref()];
+    if (next === 'system') localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  };
+
+  darkMediaQuery.addEventListener('change', () => {
+    if (currentThemePref() === 'system') applyTheme('system');
+  });
+
+  applyTheme(currentThemePref());
 
   // ── Native app detection (Capacitor) ─────────────────────────────────────
   // window.Capacitor is injected automatically by the native Android/iOS
