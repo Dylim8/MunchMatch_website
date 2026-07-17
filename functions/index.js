@@ -113,18 +113,26 @@ async function fetchAllPages(key, baseBody, targetCount = 20, maxPages = 3) {
 // duplicated attack surface (auth + rate-limit logic, another billable
 // endpoint) for zero benefit.
 async function fetchRestaurantResults(filters, key) {
-  const { location, distance, mealtime, price, cuisine, rating, dietary, openNow } = filters;
+  const { location, lat, lng, distance, mealtime, price, cuisine, rating, dietary, openNow } = filters;
 
   const radiusMeters = Math.min((parseInt(distance) || 5) * 1609, 50000);
   const priceLevels  = PRICE_LEVELS.slice(0, parseInt(price) || 2);
 
   const dietaryPrefix = dietary === "vegan" ? "vegan " : "";
-  const textQuery     = `${dietaryPrefix}${mealtime} restaurants in ${location}`;
+  const hasCoords = lat != null && lng != null;
+  // With real coordinates, the query text stays location-free and the bias
+  // circle carries the precise position; otherwise fall back to letting
+  // Places geocode the typed location text itself, same as before.
+  const textQuery = hasCoords
+    ? `${dietaryPrefix}${mealtime} restaurants`
+    : `${dietaryPrefix}${mealtime} restaurants in ${location}`;
 
   const baseBody = {
     textQuery,
     priceLevels,
-    locationBias: { circle: { radius: radiusMeters } },
+    locationBias: hasCoords
+      ? { circle: { center: { latitude: lat, longitude: lng }, radius: radiusMeters } }
+      : { circle: { radius: radiusMeters } },
   };
 
   if (openNow === true) baseBody.openNow = true;
@@ -261,6 +269,18 @@ exports.createGroup = onCall({ secrets: [PLACES_KEY] }, async (request) => {
   if (!location) {
     throw new HttpsError("invalid-argument", "Location is required.");
   }
+  // Optional geolocation shortcut: only used transiently to bias the Places
+  // search below, never persisted (see the update() call further down).
+  // groups/{code}/filters is world-readable to anyone with the join code,
+  // so the host's precise GPS position must never end up there.
+  let lat = null, lng = null;
+  const rawLat = parseFloat(request.data?.lat);
+  const rawLng = parseFloat(request.data?.lng);
+  if (Number.isFinite(rawLat) && Number.isFinite(rawLng) &&
+      rawLat >= -90 && rawLat <= 90 && rawLng >= -180 && rawLng <= 180) {
+    lat = rawLat;
+    lng = rawLng;
+  }
   const mealtime  = MEALTIME_OPTIONS.includes(request.data?.mealtime) ? request.data.mealtime : "dinner";
   const distance  = clamp(parseInt(request.data?.distance) || 5, 1, 25);
   const groupSize = clamp(parseInt(request.data?.groupSize) || 2, 2, 20);
@@ -277,7 +297,7 @@ exports.createGroup = onCall({ secrets: [PLACES_KEY] }, async (request) => {
   let restaurants;
   try {
     restaurants = await fetchRestaurantResults(
-      { location, distance, mealtime, price, cuisine, rating, dietary, openNow },
+      { location, lat, lng, distance, mealtime, price, cuisine, rating, dietary, openNow },
       PLACES_KEY.value()
     );
   } catch (e) {

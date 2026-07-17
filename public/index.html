@@ -338,6 +338,15 @@
     }
     .error-pill.visible { display: inline-flex; }
 
+    .geo-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: none; border: none; padding: 0.3em 0;
+      color: var(--accent); font-family: var(--fb); font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; margin-top: 0.4rem;
+    }
+    .geo-btn:hover { text-decoration: underline; }
+    .geo-btn:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+
     /* ── SWIPE ── */
     .swipe-topbar {
       display: flex; justify-content: space-between; align-items: center;
@@ -507,7 +516,9 @@
   <div class="form-scroll">
     <div class="field">
       <label>Location</label>
-      <input type="text" id="c-loc" placeholder="e.g. Playa Del Rey, CA" />
+      <input type="text" id="c-loc" placeholder="e.g. Playa Del Rey, CA" oninput="clearGeoCoords()" />
+      <button type="button" class="geo-btn" id="use-location-btn" onclick="useCurrentLocation()">Use my current location</button>
+      <div class="error-pill" id="location-error"></div>
     </div>
     <div class="form-row">
       <div class="field">
@@ -1000,6 +1011,59 @@
 
   loadCounter();
 
+  // ── Geolocation (optional shortcut for the location field) ──────────────
+  // Coordinates are only ever used transiently to bias the Places search on
+  // the server, then discarded: the group's filters (readable by anyone with
+  // the join code) only ever store the display text, never the raw GPS
+  // position, so joining a group never exposes the host's precise location.
+  let geoLat = null, geoLng = null;
+
+  window.clearGeoCoords = function() { geoLat = null; geoLng = null; };
+
+  function friendlyLocationError(e) {
+    switch (e?.code) {
+      case 'denied':      return 'Location access was denied. Enter a location manually instead.';
+      case 'unavailable': return "Your location couldn't be determined. Enter a location manually instead.";
+      case 'timeout':      return 'Location took too long to find. Try again or enter a location manually.';
+      case 'unsupported':  return "Your browser doesn't support location access. Enter a location manually.";
+      default:              return "Couldn't get your location. Enter a location manually instead.";
+    }
+  }
+
+  window.useCurrentLocation = function() {
+    const btn = document.getElementById('use-location-btn');
+    const err = document.getElementById('location-error');
+    err.classList.remove('visible');
+
+    if (!navigator.geolocation) {
+      err.textContent = friendlyLocationError({ code: 'unsupported' });
+      err.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Finding your location...';
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        geoLat = pos.coords.latitude;
+        geoLng = pos.coords.longitude;
+        document.getElementById('c-loc').value = 'Current Location';
+        btn.disabled = false;
+        btn.textContent = 'Use my current location';
+      },
+      (geoErr) => {
+        // GeolocationPositionError.code: 1 = denied, 2 = unavailable, 3 = timeout
+        const code = geoErr.code === 1 ? 'denied' : geoErr.code === 2 ? 'unavailable' : 'timeout';
+        err.textContent = friendlyLocationError({ code });
+        err.classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Use my current location';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
+    );
+  };
+
   // ── Create Group ──────────────────────────────────────────────────────────
   window.createGroup = async function() {
     const loc     = document.getElementById('c-loc').value.trim();
@@ -1034,7 +1098,7 @@
       // means the code can't appear until the whole thing finishes, since
       // there's nothing to show until the server returns.
       const result = await createGroupFn({
-        location: loc, distance: dist, groupSize: size, mealtime: meal,
+        location: loc, lat: geoLat, lng: geoLng, distance: dist, groupSize: size, mealtime: meal,
         price, cuisine, rating, dietary, openNow, allowSwipeAgain: swipeAgainAllowed,
       });
       groupCode = result.data.groupCode;

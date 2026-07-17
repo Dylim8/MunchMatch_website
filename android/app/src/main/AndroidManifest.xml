@@ -43,4 +43,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Coarse only: the "use my current location" shortcut on the create-group
+         screen only needs a search-radius-scale fix, not precise GPS. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 </manifest>
