@@ -2,8 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Stop arguing about where to eat. Swipe, match, and decide together." />
   <title>MunchMatch</title>
+
+  <script>
+    // Applies the theme before first paint, so there is no flash of the wrong
+    // theme. theme.js-equivalent logic below (in the main module script) only
+    // needs to re-derive this for the change path: toggling, or the OS
+    // preference changing while "system" is explicitly selected. Light is
+    // the default until the user explicitly picks dark or system.
+    (function() {
+      var stored = localStorage.getItem('munchmatch:theme');
+      var theme = stored === 'dark' ? 'dark'
+        : stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#F07020" />
+
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MunchMatch" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -21,8 +48,31 @@
       --green:     #2A9D6F;
       --cream:     #2C1A0E;
       --muted:     #A08878;
+      --glass:     rgba(255,255,255,0.7);
+      --pc2:       #F5EAD8;
+      --pc3:       #EDE0D0;
       --fd:        'DM Serif Display', serif;
       --fb:        'Nunito', sans-serif;
+    }
+
+    /* Dark theme: only the neutral tokens change. Accent, gold, and green
+       stay close to their light values (slightly brightened for contrast on
+       a dark background) so the brand color is doing the same work in both
+       themes instead of the page just going gray. */
+    :root[data-theme="dark"] {
+      --bg:        #1A1310;
+      --surface:   #221A15;
+      --card-bg:   #2B2119;
+      --raised:    #332619;
+      --border:    rgba(255,255,255,0.08);
+      --accent-lo: rgba(240,112,32,0.18);
+      --gold:      #E0A030;
+      --green:     #34B884;
+      --cream:     #F5EDE0;
+      --muted:     #B8A290;
+      --glass:     rgba(0,0,0,0.35);
+      --pc2:       #3A2C1E;
+      --pc3:       #443524;
     }
 
     html, body { height: 100%; overflow: hidden; }
@@ -34,6 +84,18 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 180px; opacity: 0.018; pointer-events: none; z-index: 9999;
     }
+
+    /* Theme toggle: fixed above every screen, cycles system, light, dark */
+    #theme-toggle-btn {
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
+      right: calc(env(safe-area-inset-right, 0px) + 0.9rem); z-index: 500;
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: 100px; padding: 0.4em 0.85em;
+      font-family: var(--fb); font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.03em; color: var(--muted); cursor: pointer;
+      backdrop-filter: blur(8px); transition: color 0.2s ease;
+    }
+    #theme-toggle-btn:hover { color: var(--cream); }
 
     /* ── SCREEN SYSTEM ── */
     .screen {
@@ -68,13 +130,21 @@
     .home-stat {
       margin-top: 0.85rem; position: relative; z-index: 1;
       display: inline-flex; align-items: center; gap: 0.45rem;
-      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
+      background: var(--glass); border: 1px solid var(--border);
       border-radius: 100px; padding: 0.35em 0.9em;
       font-size: 0.75rem; color: var(--muted);
       opacity: 0; transition: opacity 0.6s ease;
       backdrop-filter: blur(8px);
     }
     .home-stat.loaded { opacity: 1; }
+    .ios-hint {
+      display: none; align-items: center; justify-content: center; gap: 0.4rem;
+      margin-top: 0.9rem; padding: 0.6em 1.1em;
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: 100px; font-size: 0.78rem; color: var(--muted);
+      text-align: center; backdrop-filter: blur(8px);
+    }
+    .ios-hint.visible { display: flex; }
     .stat-dot {
       width: 6px; height: 6px; border-radius: 50%;
       background: var(--green); box-shadow: 0 0 5px var(--green); flex-shrink: 0;
@@ -90,10 +160,17 @@
       position: absolute; left: 50%; border-radius: 14px;
       width: 170px; height: 80px; border: 1px solid var(--border);
     }
-    .pc3 { background: #EDE0D0; transform: translateX(-50%) translateY(14px) scale(0.88); z-index: 1; }
-    .pc2 { background: #F5EAD8; transform: translateX(-50%) translateY(7px) scale(0.94); z-index: 2; }
-    .pc1 { background: var(--card-bg); transform: translateX(-50%); z-index: 3; display: flex; align-items: center; justify-content: center; }
-    .pc1-text { font-family: var(--fd); font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+    .pc3 { background: var(--pc3); transform: translateX(-50%) translateY(14px) scale(0.88); z-index: 1; }
+    .pc2 { background: var(--pc2); transform: translateX(-50%) translateY(7px) scale(0.94); z-index: 2; }
+    .pc1 { background: var(--card-bg); transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; gap: 0.3rem; padding: 0 1rem; overflow: hidden; user-select: none; }
+    .pc1:active { cursor: grabbing; }
+    .pc1-text { font-family: var(--fd); font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.35; transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; }
+    .pc1-hint { position: absolute; bottom: 0.55rem; font-size: 0.6rem; color: var(--muted); opacity: 0.45; letter-spacing: 0.08em; text-transform: uppercase; transition: opacity 0.3s ease; pointer-events: none; }
+    .pc1.fortune-mode .pc1-text { font-style: italic; color: var(--cream); font-size: 0.72rem; }
+    .pc1.fortune-mode .pc1-hint { opacity: 0; }
+    .pc1-text.swipe-out-left  { opacity: 0; transform: translateX(-10px); }
+    .pc1-text.swipe-out-right { opacity: 0; transform: translateX(10px); }
+    .pc1-text.swipe-in  { opacity: 0; transform: translateX(0px); }
 
     .home-cta {
       display: flex; flex-direction: column; gap: 0.65rem;
@@ -122,7 +199,9 @@
 
     /* ── FORM SCREENS ── */
     .screen-header {
-      display: flex; align-items: center; padding: 1.1rem 1.4rem;
+      display: flex; align-items: center;
+      padding: 1.1rem 1.4rem;
+      padding-top: max(1.1rem, env(safe-area-inset-top));
       border-bottom: 1px solid var(--border); gap: 0.9rem; flex-shrink: 0;
       background: var(--bg);
     }
@@ -144,6 +223,7 @@
     }
     .form-footer {
       padding: 1rem 1.4rem 1.75rem; flex-shrink: 0;
+      padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
       max-width: 460px; margin: 0 auto; width: 100%;
       display: flex; flex-direction: column; gap: 0.6rem;
     }
@@ -165,8 +245,24 @@
       box-shadow: 0 0 0 3px rgba(240,112,32,0.08);
     }
     .field input::placeholder { color: var(--muted); }
-    .field select option { background: #fff; }
+    .field select option { background: var(--card-bg); color: var(--cream); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .toggle-field { justify-content: space-between; flex-direction: row; align-items: center; padding: 0.8em 0.95em; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; }
+    .toggle-field label:first-child { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .toggle-wrap { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+    .toggle-wrap input { display: none; }
+    .toggle-track {
+      width: 40px; height: 22px; border-radius: 100px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      position: relative; transition: all 0.2s ease; flex-shrink: 0;
+    }
+    .toggle-thumb {
+      position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--muted); transition: all 0.2s ease;
+    }
+    .toggle-wrap input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+    .toggle-wrap input:checked + .toggle-track .toggle-thumb { transform: translateX(18px); background: #fff; }
 
     /* Code card */
     .code-reveal {
@@ -178,6 +274,40 @@
     .code-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
     .code-value { font-family: var(--fd); font-size: 2.6rem; font-weight: 400; letter-spacing: 0.15em; color: var(--accent); }
     .code-hint { font-size: 0.8rem; color: var(--muted); }
+    .copy-link-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--accent-lo); border: 1px solid rgba(240,112,32,0.25);
+      color: var(--accent); border-radius: 100px;
+      padding: 0.45em 1em; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all 0.18s; margin-top: 0.2rem;
+      font-family: var(--fb);
+    }
+    .copy-link-btn:hover { background: rgba(240,112,32,0.18); }
+    .copy-link-btn.copied { background: rgba(42,157,111,0.12); border-color: rgba(42,157,111,0.3); color: var(--green); }
+
+    .waiting-room {
+      background: var(--raised); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.1rem 1.2rem;
+      display: none; flex-direction: column; gap: 0.75rem;
+    }
+    .waiting-room.visible { display: flex; }
+    .wr-header { display: flex; align-items: center; gap: 0.5rem; }
+    .wr-pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 6px var(--green); flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+    .wr-label { font-size: 0.78rem; color: var(--muted); }
+    .wr-label strong { color: var(--cream); font-weight: 700; }
+    .wr-pips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .wr-pip {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; color: var(--muted); transition: all 0.3s ease;
+    }
+    .wr-pip.joined { background: rgba(42,157,111,0.15); border-color: var(--green); color: var(--green); font-weight: 700; }
 
     /* Inline loader */
     .inline-loader { display: none; align-items: center; gap: 0.7rem; color: var(--muted); font-size: 0.85rem; }
@@ -208,10 +338,20 @@
     }
     .error-pill.visible { display: inline-flex; }
 
+    .geo-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: none; border: none; padding: 0.3em 0;
+      color: var(--accent); font-family: var(--fb); font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; margin-top: 0.4rem;
+    }
+    .geo-btn:hover { text-decoration: underline; }
+    .geo-btn:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+
     /* ── SWIPE ── */
     .swipe-topbar {
       display: flex; justify-content: space-between; align-items: center;
       padding: 0.9rem 1.4rem; flex-shrink: 0;
+      padding-top: max(0.9rem, env(safe-area-inset-top));
       border-bottom: 1px solid var(--border);
     }
     .swipe-logo { font-family: var(--fd); font-weight: 400; font-size: 1rem; font-style: italic; }
@@ -230,10 +370,13 @@
       position: absolute;
       width: min(320px, calc(100vw - 2.5rem));
       height: min(460px, calc(100vh - 210px));
+      height: min(460px, calc(100dvh - 210px));
       border-radius: 22px; overflow: hidden;
       cursor: grab; user-select: none;
+      touch-action: none;
       box-shadow: 0 16px 48px rgba(60,30,10,0.18), 0 4px 12px rgba(60,30,10,0.1);
       will-change: transform;
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
     }
     .swipe-card:active { cursor: grabbing; }
     .swipe-card.back-2 { transform: scale(0.89) translateY(28px); z-index: 1; }
@@ -265,6 +408,7 @@
     .swipe-actions {
       display: flex; justify-content: center; align-items: center;
       gap: 1.4rem; padding: 1rem 1.4rem 1.5rem; flex-shrink: 0;
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
     }
     .act {
       border-radius: 50%; border: 1.5px solid var(--border);
@@ -305,10 +449,13 @@
     @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
     .match-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; width: 100%; animation: fadeUp 0.4s 0.35s ease both; box-shadow: 0 4px 20px rgba(60,30,10,0.1); }
-    .match-photo  { width: 100%; height: 150px; object-fit: cover; display: block; background: var(--surface); }
-    .match-info   { padding: 0.9rem 1rem; text-align: left; }
-    .match-name   { font-family: var(--fd); font-size: 1.2rem; font-weight: 400; margin-bottom: 0.3rem; }
-    .match-detail { font-size: 0.8rem; color: var(--muted); }
+    .match-photo   { width: 100%; height: 190px; object-fit: cover; display: block; background: var(--surface); }
+    .match-info    { padding: 1rem 1.1rem 1.1rem; text-align: left; }
+    .match-name    { font-family: var(--fd); font-size: 1.35rem; font-weight: 400; margin-bottom: 0.5rem; line-height: 1.1; }
+    .match-chips   { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.55rem; }
+    .match-chip    { font-size: 0.7rem; padding: 0.2em 0.6em; border-radius: 100px; background: var(--surface); color: var(--muted); font-weight: 600; border: 1px solid var(--border); }
+    .match-chip-gold { color: var(--gold); background: rgba(212,134,10,0.08); border-color: rgba(212,134,10,0.2); }
+    .match-address { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
 
     .match-actions { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; animation: fadeUp 0.4s 0.45s ease both; }
     .btn-link {
@@ -330,6 +477,8 @@
 
 <canvas id="confetti"></canvas>
 
+<button id="theme-toggle-btn" onclick="cycleTheme()" aria-label="Change theme">Light</button>
+
 <!-- ── HOME ── -->
 <div id="screen-home" class="screen active">
   <div class="home-glow"></div>
@@ -342,14 +491,20 @@
   <div class="home-preview">
     <div class="preview-card pc3"></div>
     <div class="preview-card pc2"></div>
-    <div class="preview-card pc1">
-      <span class="pc1-text">Swipe to decide</span>
+    <div class="preview-card pc1" id="fortune-card">
+      <span class="pc1-text" id="fortune-text">Swipe to decide</span>
+      <span class="pc1-hint" id="fortune-hint">swipe me</span>
     </div>
   </div>
   <div class="home-cta">
     <button class="btn btn-primary" onclick="nav('screen-create')">Create Group</button>
     <button class="btn btn-secondary" onclick="nav('screen-join')">Join Group</button>
   </div>
+  <div class="error-pill" id="auth-error" style="margin-top:0.9rem;">
+    ✕ &nbsp;Couldn't connect. <a href="#" onclick="retryAuth(); return false;" style="color:inherit;text-decoration:underline;margin-left:0.3em;">Tap to retry</a>
+  </div>
+  <button class="btn btn-secondary" id="install-btn" style="display:none; margin-top:0.9rem;" onclick="promptInstall()">&#8681; Add to Home Screen</button>
+  <div class="ios-hint" id="ios-hint">Install MunchMatch: tap <strong>&nbsp;Share&nbsp;</strong> then <strong>&nbsp;Add to Home Screen&nbsp;</strong></div>
 </div>
 
 <!-- ── CREATE ── -->
@@ -361,7 +516,9 @@
   <div class="form-scroll">
     <div class="field">
       <label>Location</label>
-      <input type="text" id="c-loc" placeholder="e.g. Playa Del Rey, CA" />
+      <input type="text" id="c-loc" placeholder="e.g. Playa Del Rey, CA" oninput="clearGeoCoords()" />
+      <button type="button" class="geo-btn" id="use-location-btn" onclick="useCurrentLocation()">Use my current location</button>
+      <div class="error-pill" id="location-error"></div>
     </div>
     <div class="form-row">
       <div class="field">
@@ -392,10 +549,81 @@
         </select>
       </div>
     </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Cuisine</label>
+        <select id="c-cuisine">
+          <option value="">Any</option>
+          <option value="american_restaurant">American</option>
+          <option value="barbecue_restaurant">BBQ</option>
+          <option value="chinese_restaurant">Chinese</option>
+          <option value="french_restaurant">French</option>
+          <option value="greek_restaurant">Greek</option>
+          <option value="indian_restaurant">Indian</option>
+          <option value="italian_restaurant">Italian</option>
+          <option value="japanese_restaurant">Japanese</option>
+          <option value="korean_restaurant">Korean</option>
+          <option value="mediterranean_restaurant">Mediterranean</option>
+          <option value="mexican_restaurant">Mexican</option>
+          <option value="middle_eastern_restaurant">Middle Eastern</option>
+          <option value="pizza_restaurant">Pizza</option>
+          <option value="seafood_restaurant">Seafood</option>
+          <option value="sushi_restaurant">Sushi</option>
+          <option value="thai_restaurant">Thai</option>
+          <option value="vietnamese_restaurant">Vietnamese</option>
+          <option value="vegetarian_restaurant">Vegetarian</option>
+          <option value="fast_food_restaurant">Fast Food</option>
+          <option value="cafe">Cafe</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Min Rating</label>
+        <select id="c-rating">
+          <option value="">Any</option>
+          <option value="3.0">3.0+</option>
+          <option value="3.5" selected>3.5+</option>
+          <option value="4.0">4.0+</option>
+          <option value="4.5">4.5+</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Dietary</label>
+        <select id="c-dietary">
+          <option value="">No preference</option>
+          <option value="vegan">Vegan</option>
+        </select>
+      </div>
+      <div class="field toggle-field">
+        <label>Open Now Only</label>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="c-open" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </div>
+    <div class="field toggle-field">
+      <label>Allow Redo Swipes</label>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="c-swipe-again" />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </label>
+    </div>
     <div class="code-reveal" id="create-code-card">
       <div class="code-label">Your group code</div>
       <div class="code-value" id="created-code"></div>
       <div class="code-hint">Share this with your group</div>
+      <button class="copy-link-btn" id="copy-link-btn" onclick="copyGroupLink()">
+        &#128279; Copy join link
+      </button>
+    </div>
+    <div class="waiting-room" id="create-waiting-room">
+      <div class="wr-header">
+        <div class="wr-pulse"></div>
+        <span class="wr-label" id="cwr-label">Waiting for group members</span>
+      </div>
+      <div class="wr-pips" id="cwr-pips"></div>
     </div>
     <div class="inline-loader" id="create-loader">
       <div class="spin"></div>
@@ -419,7 +647,7 @@
     <div class="field">
       <label>Group Code</label>
       <input type="text" id="j-code" placeholder="ABC123" maxlength="6"
-        style="text-transform:uppercase;letter-spacing:0.18em;font-size:1.4rem;font-family:'Righteous',sans-serif;font-weight:400;text-align:center;"
+        style="text-transform:uppercase;letter-spacing:0.22em;font-size:1.4rem;font-family:'Courier New','Courier',monospace;font-weight:700;text-align:center;"
         oninput="this.value=this.value.toUpperCase()" />
     </div>
     <div class="join-result" id="join-result">
@@ -431,16 +659,35 @@
         <span class="join-key">Mealtime</span>
         <span class="join-val" id="j-meal"></span>
       </div>
+      <div class="join-row" id="j-cuisine-row" style="display:none">
+        <span class="join-key">Cuisine</span>
+        <span class="join-val" id="j-cuisine"></span>
+      </div>
+      <div class="join-row" id="j-rating-row" style="display:none">
+        <span class="join-key">Min Rating</span>
+        <span class="join-val" id="j-rating"></span>
+      </div>
+      <div class="join-row" id="j-dietary-row" style="display:none">
+        <span class="join-key">Dietary</span>
+        <span class="join-val" id="j-dietary"></span>
+      </div>
       <div class="join-row">
         <span class="join-key">Restaurants</span>
         <span class="join-val" id="j-count"></span>
       </div>
     </div>
+    <div class="waiting-room" id="waiting-room">
+      <div class="wr-header">
+        <div class="wr-pulse"></div>
+        <span class="wr-label" id="wr-label">Waiting for group members</span>
+      </div>
+      <div class="wr-pips" id="wr-pips"></div>
+    </div>
     <div class="error-pill" id="join-error">✕ &nbsp;Group not found. Check your code.</div>
   </div>
   <div class="form-footer">
     <button id="join-btn" class="btn btn-primary btn-full" onclick="joinGroup()">Find Group</button>
-    <button id="join-go-btn" class="btn btn-secondary btn-full" style="display:none" onclick="goSwipe()">Start Swiping →</button>
+    <button id="join-go-btn" class="btn btn-primary btn-full" style="display:none" onclick="goSwipe()">Start Swiping →</button>
   </div>
 </div>
 
@@ -456,11 +703,12 @@
   </div>
   <div class="swipe-overlay-state" id="swipe-loading" style="display:none">
     <div class="spinner-large"></div>
-    <div class="overlay-sub">Loading restaurants</div>
+    <div class="overlay-sub" id="loader-cycle-msg">Finding restaurants</div>
   </div>
   <div class="swipe-overlay-state" id="swipe-done" style="display:none">
     <div class="overlay-title">You've seen them all!</div>
-    <div class="overlay-sub">Waiting for the rest of your group</div>
+    <div class="overlay-sub">Waiting for the rest of your group&hellip;</div>
+    <button class="btn btn-secondary" id="swipe-again-btn" style="margin-top:0.5rem" onclick="swipeAgain()">Redo My Swipes</button>
   </div>
   <div id="swipe-ui" style="display:flex;flex-direction:column;flex:1;">
     <div class="card-stack" id="card-stack"></div>
@@ -477,17 +725,18 @@
   <div class="match-content">
     <div class="match-icon">&#10003;</div>
     <div class="match-title">It's a Match!</div>
-    <p class="match-sub">Everyone picked the same place</p>
+    <p class="match-sub">Everyone in your group agreed</p>
     <div class="match-card">
       <img class="match-photo" id="match-photo" src="" alt="" />
       <div class="match-info">
         <div class="match-name" id="match-name"></div>
-        <div class="match-detail" id="match-detail"></div>
+        <div class="match-chips" id="match-chips"></div>
+        <div class="match-address" id="match-address"></div>
       </div>
     </div>
     <div class="match-actions">
-      <a class="btn-link" id="match-link" href="#" target="_blank">View on Google Maps →</a>
-      <button class="btn btn-secondary btn-full" onclick="nav('screen-home')">Back to Home</button>
+      <a class="btn-link" id="match-link" href="#" target="_blank">Open in Google Maps ↗</a>
+      <button class="btn btn-secondary btn-full" onclick="nav('screen-home')">Start New Group</button>
     </div>
   </div>
 </div>
@@ -495,10 +744,12 @@
 <script type="module">
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-  import { getDatabase, ref, get, set, child, onValue, runTransaction }
+  import { getDatabase, ref, get, set, child, onValue }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
   import { getFunctions, httpsCallable }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-functions.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";
 
   // ── Config ────────────────────────────────────────────────────────────────
   // No Google Places key here — it lives as a Firebase secret, never in the browser
@@ -513,23 +764,172 @@
   });
   const db              = getDatabase(app);
   const functions       = getFunctions(app);
-  const fetchPlacesFn   = httpsCallable(functions, 'fetchRestaurants');
+  const createGroupFn    = httpsCallable(functions, 'createGroup');
+  const registerMemberFn = httpsCallable(functions, 'joinGroup');
+  const auth            = getAuth(app);
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  // Anonymous sign-in must resolve before any read/write that depends on userId.
+  let userId = null;
+  let resolveAuthReady, rejectAuthReady;
+  let authReadyPromise = newAuthReadyPromise();
+
+  function newAuthReadyPromise() {
+    const p = new Promise((res, rej) => { resolveAuthReady = res; rejectAuthReady = rej; });
+    p.catch(() => {}); // mark as handled so a rejection before any await doesn't log spuriously; real awaiters still see it
+    return p;
+  }
+
+  function attemptSignIn() {
+    document.getElementById('auth-error')?.classList.remove('visible');
+    signInAnonymously(auth).catch(e => {
+      console.error('Anonymous sign-in failed:', e);
+      rejectAuthReady(e);
+      document.getElementById('auth-error')?.classList.add('visible');
+    });
+  }
+
+  window.retryAuth = function() {
+    authReadyPromise = newAuthReadyPromise();
+    attemptSignIn();
+  };
+
+  onAuthStateChanged(auth, user => {
+    if (!user) return; // signed out / still resolving
+    userId = user.uid;
+    resolveAuthReady(userId);
+    document.getElementById('create-btn').disabled = false;
+    document.getElementById('join-btn').disabled    = false;
+    document.getElementById('auth-error')?.classList.remove('visible');
+  });
+
+  // Disable the actions that lead to userId-scoped writes until auth resolves
+  document.getElementById('create-btn').disabled = true;
+  document.getElementById('join-btn').disabled    = true;
+
+  attemptSignIn();
 
   // ── State ─────────────────────────────────────────────────────────────────
   let groupCode   = null;
   let restaurants = [];
   let idx         = 0;
   let matchFound  = false;
-  const userId    = 'u-' + Math.random().toString(36).slice(2, 9);
+  let allowSwipeAgain = false; // per-group setting, off by default — set in createGroup()/joinGroup()
+  let wrUnsubscribe  = null; // waiting room Firebase listener cleanup
+  let lobbyScreenId  = null; // 'screen-create' or 'screen-join' — where to return on a swipe-start error
 
-  // ── Utilities ─────────────────────────────────────────────────────────────
-  function genCode(n = 6) {
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return Array.from({length: n}, () => c[Math.floor(Math.random() * c.length)]).join('');
+  // ── Theme: light (default), dark, system ─────────────────────────────────
+  // The inline script in <head> already applied the correct data-theme
+  // before first paint; this handles the change path only, tapping the
+  // toggle or the OS preference changing while "system" is explicitly
+  // selected. Light is the default until the user picks something else,
+  // so unlike a "system is default" scheme, every preference including
+  // light is stored explicitly rather than represented by absence.
+  const THEME_KEY    = 'munchmatch:theme';
+  const THEME_LABELS = { light: 'Light', dark: 'Dark', system: 'System' };
+  const THEME_NEXT   = { light: 'dark', dark: 'system', system: 'light' };
+  const darkMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function currentThemePref() {
+    const stored = localStorage.getItem(THEME_KEY);
+    return stored === 'dark' || stored === 'system' ? stored : 'light';
   }
+
+  function effectiveTheme(pref) {
+    return pref === 'system' ? (darkMediaQuery.matches ? 'dark' : 'light') : pref;
+  }
+
+  function applyTheme(pref) {
+    document.documentElement.setAttribute('data-theme', effectiveTheme(pref));
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = THEME_LABELS[pref];
+  }
+
+  window.cycleTheme = function() {
+    const next = THEME_NEXT[currentThemePref()];
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  };
+
+  darkMediaQuery.addEventListener('change', () => {
+    if (currentThemePref() === 'system') applyTheme('system');
+  });
+
+  applyTheme(currentThemePref());
+
+  // ── Native app detection (Capacitor) ─────────────────────────────────────
+  // window.Capacitor is injected automatically by the native Android/iOS
+  // shell's bridge script before this module runs — it does not exist in the
+  // regular website/PWA context, where isNativeApp correctly evaluates false.
+  // No @capacitor/core import needed since there's no bundler in this project;
+  // this is Capacitor's own supported pattern for non-bundled web apps.
+  const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+  // Canonical origin for join links and native deep-link validation — never
+  // window.location.origin, which inside the native shell is capacitor://localhost.
+  const MUNCHMATCH_WEB_ORIGIN = 'https://munchmatch-9e2fe.web.app';
+
+  // ── PWA: install prompt ───────────────────────────────────────────────────
+  let deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    if (isNativeApp) return; // never show install UI inside the native app
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    document.getElementById('install-btn').style.display = 'flex';
+  });
+
+  window.promptInstall = async function() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('install-btn').style.display = 'none';
+  };
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    document.getElementById('install-btn').style.display = 'none';
+  });
+
+  // iOS Safari never fires beforeinstallprompt, so the button above never
+  // appears there — show a manual "tap Share" instruction instead.
+  (function showIOSInstallHint() {
+    if (isNativeApp) return; // never show the manual install hint inside the native app
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+    const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (isSafari && !isStandalone) {
+      document.getElementById('ios-hint').classList.add('visible');
+    }
+  })();
+
+  // ── Copy join link ────────────────────────────────────────────────────────
+  window.copyGroupLink = function() {
+    const code = document.getElementById('created-code').textContent;
+    if (!code) return;
+    const url = MUNCHMATCH_WEB_ORIGIN + '/?code=' + code;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('copy-link-btn');
+      btn.innerHTML = '&#10003; Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.innerHTML = '&#128279; Copy join link';
+        btn.classList.remove('copied');
+      }, 2200);
+    }).catch(() => { prompt('Copy this link:', url); });
+  };
 
   // Photo URIs are resolved server-side and stored as direct CDN URLs — no key needed
   function getPhotoSrc(r) { return r.photoUri || ''; }
+
+  function chipEl(baseClass, text, extraClass) {
+    const span = document.createElement('span');
+    span.className = extraClass ? `${baseClass} ${extraClass}` : baseClass;
+    span.textContent = text;
+    return span;
+  }
 
   // ── Navigation ────────────────────────────────────────────────────────────
   window.nav = function(id) {
@@ -542,6 +942,56 @@
       requestAnimationFrame(() => document.getElementById(id).classList.add('active'))
     );
   };
+
+  // ── Auto-fill join code from URL param (?code=XXXXXX) ────────────────────
+  (function checkUrlCode() {
+    const params = new URLSearchParams(window.location.search);
+    const code   = params.get('code');
+    if (!code) return;
+    nav('screen-join');
+    document.getElementById('j-code').value = code.toUpperCase();
+    setTimeout(() => joinGroup(), 350);
+  })();
+
+  // ── Native deep links (Capacitor) ────────────────────────────────────────
+  // Reuses the same joinGroup() flow as the web ?code= handler above — no
+  // separate native join implementation. Strict origin + format validation
+  // since this URL is attacker-influenced (arrives via an OS-level intent).
+  if (isNativeApp) {
+    const CapApp = window.Capacitor.Plugins.App;
+
+    const handleDeepLink = (url) => {
+      let parsed;
+      try { parsed = new URL(url); } catch { return; }
+      if (parsed.origin !== MUNCHMATCH_WEB_ORIGIN) return;
+      const code = (parsed.searchParams.get('code') || '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{6}$/.test(code)) return;
+      nav('screen-join');
+      document.getElementById('j-code').value = code;
+      setTimeout(() => joinGroup(), 350);
+    };
+
+    CapApp.addListener('appUrlOpen', (data) => handleDeepLink(data.url));
+    CapApp.getLaunchUrl().then((result) => { if (result?.url) handleDeepLink(result.url); });
+
+    // Android hardware back button: navigate within the app's existing
+    // screens (reusing the same targets as the on-screen ← buttons) rather
+    // than letting the OS default of minimizing/exiting fire unexpectedly
+    // mid-flow. Any other screen falls through to the default exit behavior.
+    const BACK_BUTTON_TARGETS = { 'screen-create': 'screen-home', 'screen-join': 'screen-home' };
+    CapApp.addListener('backButton', () => {
+      const current = document.querySelector('.screen.active')?.id;
+      const target = BACK_BUTTON_TARGETS[current];
+      if (target) nav(target);
+      else CapApp.exitApp();
+    });
+
+    // Extend the WebView under the status bar so the existing
+    // env(safe-area-inset-*) CSS padding (already built for iOS PWA
+    // fullscreen mode) applies consistently on native too, instead of the
+    // status bar reserving its own space and leaving that CSS inert.
+    window.Capacitor.Plugins.StatusBar?.setOverlaysWebView({ overlay: true }).catch(() => {});
+  }
 
   window.goSwipe = function() {
     nav('screen-swipe');
@@ -559,21 +1009,73 @@
     } catch { /* counter is a nice-to-have, fail silently */ }
   }
 
-  async function incrementCounter() {
-    try {
-      await runTransaction(ref(db, 'meta/partiesHelped'), n => (n || 0) + 1);
-    } catch(e) { console.warn('Counter error:', e); }
+  loadCounter();
+
+  // ── Geolocation (optional shortcut for the location field) ──────────────
+  // Coordinates are only ever used transiently to bias the Places search on
+  // the server, then discarded: the group's filters (readable by anyone with
+  // the join code) only ever store the display text, never the raw GPS
+  // position, so joining a group never exposes the host's precise location.
+  let geoLat = null, geoLng = null;
+
+  window.clearGeoCoords = function() { geoLat = null; geoLng = null; };
+
+  function friendlyLocationError(e) {
+    switch (e?.code) {
+      case 'denied':      return 'Location access was denied. Enter a location manually instead.';
+      case 'unavailable': return "Your location couldn't be determined. Enter a location manually instead.";
+      case 'timeout':      return 'Location took too long to find. Try again or enter a location manually.';
+      case 'unsupported':  return "Your browser doesn't support location access. Enter a location manually.";
+      default:              return "Couldn't get your location. Enter a location manually instead.";
+    }
   }
 
-  loadCounter();
+  window.useCurrentLocation = function() {
+    const btn = document.getElementById('use-location-btn');
+    const err = document.getElementById('location-error');
+    err.classList.remove('visible');
+
+    if (!navigator.geolocation) {
+      err.textContent = friendlyLocationError({ code: 'unsupported' });
+      err.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Finding your location...';
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        geoLat = pos.coords.latitude;
+        geoLng = pos.coords.longitude;
+        document.getElementById('c-loc').value = 'Current Location';
+        btn.disabled = false;
+        btn.textContent = 'Use my current location';
+      },
+      (geoErr) => {
+        // GeolocationPositionError.code: 1 = denied, 2 = unavailable, 3 = timeout
+        const code = geoErr.code === 1 ? 'denied' : geoErr.code === 2 ? 'unavailable' : 'timeout';
+        err.textContent = friendlyLocationError({ code });
+        err.classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Use my current location';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
+    );
+  };
 
   // ── Create Group ──────────────────────────────────────────────────────────
   window.createGroup = async function() {
-    const loc   = document.getElementById('c-loc').value.trim();
-    const dist  = parseInt(document.getElementById('c-dist').value) || 5;
-    const size  = parseInt(document.getElementById('c-size').value);
-    const meal  = document.getElementById('c-meal').value;
-    const price = document.getElementById('c-price').value;
+    const loc     = document.getElementById('c-loc').value.trim();
+    const dist    = parseInt(document.getElementById('c-dist').value) || 5;
+    const size    = parseInt(document.getElementById('c-size').value);
+    const meal    = document.getElementById('c-meal').value;
+    const price   = document.getElementById('c-price').value;
+    const cuisine = document.getElementById('c-cuisine').value;
+    const rating  = document.getElementById('c-rating').value;
+    const dietary = document.getElementById('c-dietary').value;
+    const openNow = document.getElementById('c-open').checked;
+    const swipeAgainAllowed = document.getElementById('c-swipe-again').checked;
 
     if (!loc || !size || size < 2) {
       alert('Please enter a location and group size (minimum 2).'); return;
@@ -582,39 +1084,43 @@
     const btn = document.getElementById('create-btn');
     btn.disabled = true;
     document.getElementById('create-error').classList.remove('visible');
-
-    groupCode = genCode();
-    document.getElementById('created-code').textContent = groupCode;
-    document.getElementById('create-code-card').classList.add('visible');
     document.getElementById('create-loader').classList.add('visible');
-    document.getElementById('loader-msg').textContent = 'Finding restaurants';
-
-    const filters = { location: loc, distance: dist, groupSize: size, mealtime: meal, price };
+    document.getElementById('loader-msg').textContent = 'Creating your group';
 
     try {
-      // 1. Save group shell immediately (so joiners can find the code right away)
-      await set(ref(db, `groups/${groupCode}`), {
-        filters,
-        createdAt: new Date().toISOString(),
+      await authReadyPromise;
+
+      // Group creation is fully server-controlled: code generation, collision
+      // handling, filter validation, the Places lookup, the host's member
+      // record, and the public counter all happen inside the createGroup
+      // Cloud Function under the Admin SDK. The client can no longer write
+      // any of those fields directly (see database.rules.json) — this also
+      // means the code can't appear until the whole thing finishes, since
+      // there's nothing to show until the server returns.
+      const result = await createGroupFn({
+        location: loc, lat: geoLat, lng: geoLng, distance: dist, groupSize: size, mealtime: meal,
+        price, cuisine, rating, dietary, openNow, allowSwipeAgain: swipeAgainAllowed,
       });
+      groupCode = result.data.groupCode;
+      allowSwipeAgain = swipeAgainAllowed;
 
-      // 2. Call the Cloud Function — Places API key never touches the browser
-      const result = await fetchPlacesFn({ location: loc, distance: dist, mealtime: meal, price });
-      const rList  = result.data;
-      if (!rList.length) throw new Error('No restaurants returned for that location.');
+      loadCounter(); // refresh badge — server already incremented it
 
-      // 3. Save results
-      await set(ref(db, `groups/${groupCode}/restaurants`), rList);
-
-      // 4. Increment the global metric
-      await incrementCounter();
-      loadCounter(); // refresh badge without waiting
-
+      lobbyScreenId = 'screen-create';
+      document.getElementById('created-code').textContent = groupCode;
+      document.getElementById('create-code-card').classList.add('visible');
       document.getElementById('create-loader').classList.remove('visible');
       document.getElementById('create-go-btn').style.display = 'flex';
+      document.getElementById('create-waiting-room').classList.add('visible');
+      startWaitingRoom(groupCode, size, 'cwr-label', 'cwr-pips');
     } catch(e) {
       console.error('Create failed:', e);
+      groupCode = null;
       document.getElementById('create-loader').classList.remove('visible');
+      document.getElementById('create-code-card').classList.remove('visible');
+      document.getElementById('created-code').textContent = '';
+      document.getElementById('create-go-btn').style.display = 'none';
+      document.getElementById('create-waiting-room').classList.remove('visible');
       document.getElementById('create-error').classList.add('visible');
       btn.disabled = false;
     }
@@ -632,6 +1138,7 @@
     document.getElementById('join-result').classList.remove('visible');
 
     try {
+      await authReadyPromise;
       const snap = await get(child(ref(db), `groups/${code}`));
       if (!snap.exists()) throw new Error('Group not found. Check your code.');
 
@@ -641,12 +1148,38 @@
       if (!rList.length) throw new Error('Restaurants still loading, try again in a moment.');
 
       groupCode = code;
+      allowSwipeAgain = data.filters?.allowSwipeAgain === true;
+
+      // Register as a present member — routed through a Cloud Function so
+      // capacity is enforced atomically server-side, and repeat joins are a
+      // no-op (won't clobber an existing joinedAt/status).
+      await registerMemberFn({ groupCode });
+
       document.getElementById('j-loc').textContent   = data.filters?.location || '?';
       document.getElementById('j-meal').textContent  = data.filters?.mealtime || '?';
       document.getElementById('j-count').textContent = `${rList.length} places`;
+
+      // Optional filter rows
+      const cuisine = data.filters?.cuisine;
+      const rating  = data.filters?.rating;
+      const dietary = data.filters?.dietary;
+      const showRow = (rowId, valId, val) => {
+        const row = document.getElementById(rowId);
+        if (val && row) { document.getElementById(valId).textContent = val; row.style.display = 'flex'; }
+        else if (row)   { row.style.display = 'none'; }
+      };
+      showRow('j-cuisine-row', 'j-cuisine', cuisine);
+      showRow('j-rating-row',  'j-rating',  rating ? `${rating}+ stars` : null);
+      showRow('j-dietary-row', 'j-dietary', dietary);
       document.getElementById('join-result').classList.add('visible');
       btn.style.display = 'none';
       document.getElementById('join-go-btn').style.display = 'flex';
+
+      // ── Waiting room: live member count ──────────────────────────────────
+      lobbyScreenId = 'screen-join';
+      const groupSize = data.filters?.groupSize || 0;
+      document.getElementById('waiting-room').classList.add('visible');
+      startWaitingRoom(code, groupSize, 'wr-label', 'wr-pips');
     } catch(e) {
       document.getElementById('join-error').textContent = `✕  ${e.message}`;
       document.getElementById('join-error').classList.add('visible');
@@ -655,18 +1188,85 @@
     }
   };
 
+  // ── Waiting room ─────────────────────────────────────────────────────────
+  function startWaitingRoom(code, groupSize, labelId, pipsId) {
+    if (wrUnsubscribe) wrUnsubscribe();
+    const membersRef = ref(db, `groups/${code}/members`);
+    wrUnsubscribe = onValue(membersRef, snap => {
+      const members   = snap.val() || {};
+      const joined    = Object.keys(members).length;
+      const total     = groupSize || '?';
+      const label     = document.getElementById(labelId);
+      const pips      = document.getElementById(pipsId);
+      if (label) {
+        label.textContent = '';
+        const strong = document.createElement('strong');
+        strong.textContent = `${joined} of ${total}`;
+        label.appendChild(strong);
+        label.appendChild(document.createTextNode(' people have joined'));
+      }
+      if (pips && groupSize) {
+        pips.textContent = '';
+        for (let i = 0; i < groupSize; i++) {
+          const pip = document.createElement('div');
+          pip.className = `wr-pip${i < joined ? ' joined' : ''}`;
+          pip.textContent = i < joined ? '✓' : String(i + 1);
+          pips.appendChild(pip);
+        }
+      }
+    });
+  }
+
   // ── Swipe screen ──────────────────────────────────────────────────────────
+  const LOADER_MSGS = [
+    'Finding restaurants\u2026',
+    'Checking what\'s open\u2026',
+    'Reading the menus\u2026',
+    'Almost there\u2026',
+  ];
+  let loaderInterval = null;
+
+  function startLoaderCycle() {
+    let i = 0;
+    const el = document.getElementById('loader-cycle-msg');
+    if (el) el.textContent = LOADER_MSGS[0];
+    loaderInterval = setInterval(() => {
+      i = (i + 1) % LOADER_MSGS.length;
+      if (el) el.textContent = LOADER_MSGS[i];
+    }, 2800);
+  }
+  function stopLoaderCycle() {
+    clearInterval(loaderInterval);
+    loaderInterval = null;
+  }
+
   async function startSwipe() {
     setSwipeState('loading');
+    startLoaderCycle();
     try {
+      // Auth must resolve before we can write anything keyed by userId
+      await authReadyPromise;
+      // Member was already registered with status:'waiting' at join/create time — just flip the status
+      await set(ref(db, `groups/${groupCode}/members/${userId}/status`), 'swiping');
       const snap = await get(child(ref(db), `groups/${groupCode}/restaurants`));
       if (!snap.exists()) throw new Error('No restaurants found');
+
+      // Only leave the waiting room once startup has fully succeeded —
+      // if we bail out to the lobby on failure, its live count must still work.
+      if (wrUnsubscribe) { wrUnsubscribe(); wrUnsubscribe = null; }
+
       restaurants = snap.val();
       idx = 0; matchFound = false;
+      stopLoaderCycle();
       setSwipeState('cards');
       renderStack();
       watchForMatch();
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) {
+      stopLoaderCycle();
+      setSwipeState(null); // hide the stuck loading overlay
+      nav(lobbyScreenId || 'screen-home');
+      alert('Error: ' + e.message);
+    }
   }
 
   function setSwipeState(s) {
@@ -675,22 +1275,53 @@
     document.getElementById('swipe-ui').style.display      = s === 'cards'   ? 'flex' : 'none';
   }
 
+  window.swipeAgain = function() {
+    idx = 0;
+    setSwipeState('cards');
+    renderStack();
+  };
+
   function renderStack() {
     const stack = document.getElementById('card-stack');
-    stack.innerHTML = '';
+    stack.querySelector('.front:not(.ejecting)')?._dragCleanup?.(); // safety net in case a card is replaced without going through ejectCard()
     updateProgress();
-    if (idx >= restaurants.length) { setSwipeState('done'); return; }
+    // Note: intentionally not touching stack.innerHTML here even when done —
+    // a card mid-eject (see below) needs to keep flying off on its own.
+    if (idx >= restaurants.length) {
+      document.getElementById('swipe-again-btn').style.display = allowSwipeAgain ? '' : 'none';
+      setSwipeState('done');
+      return;
+    }
 
     const indices = [idx + 2, idx + 1, idx].filter(i => i < restaurants.length);
     const classes = ['back-2', 'back-1', 'front'];
     const offset  = classes.length - indices.length;
+    const targetIds = new Set(indices.map(i => restaurants[i].id));
 
-    indices.forEach((ri, pos) => {
-      const card = makeCard(restaurants[ri]);
-      card.classList.add(classes[pos + offset]);
-      stack.appendChild(card);
+    // Drop cards no longer in the stack — except one currently mid-eject,
+    // which removes itself once its own fly-off animation finishes (see
+    // ejectCard()), running in parallel with the promotion animation below.
+    stack.querySelectorAll('.swipe-card').forEach(el => {
+      if (!targetIds.has(el.dataset.id) && !el.classList.contains('ejecting')) el.remove();
     });
-    bindDrag(stack.querySelector('.front'));
+
+    // Reuse existing cards for restaurants still in the stack — reassigning
+    // their class (not recreating the element) lets the base CSS transition
+    // animate back-2 → back-1 → front smoothly instead of popping into place.
+    // Only the newly-revealed back-2 slot needs a freshly created card.
+    const existingById = new Map(
+      Array.from(stack.querySelectorAll('.swipe-card')).map(el => [el.dataset.id, el])
+    );
+    indices.forEach((ri, pos) => {
+      const r = restaurants[ri];
+      let card = existingById.get(r.id);
+      if (!card) {
+        card = makeCard(r);
+        stack.appendChild(card);
+      }
+      card.className = `swipe-card ${classes[pos + offset]}`;
+    });
+    bindDrag(stack.querySelector('.front:not(.ejecting)'));
   }
 
   function makeCard(r) {
@@ -698,55 +1329,95 @@
     el.className  = 'swipe-card';
     el.dataset.id = r.id;
 
-    const imgSrc = getPhotoSrc(r);
-    const rating = r.rating    ? `<span class="chip chip-rating">&#9733; ${r.rating}</span>` : '';
-    const price  = r.price     ? `<span class="chip chip-price">${r.price}</span>`    : '';
-    // Pull neighbourhood from address (second-to-last comma segment)
-    const parts  = (r.address || '').split(',');
-    const area   = parts.length > 2 ? parts[parts.length - 3]?.trim() : '';
-    const loc    = area ? `<span class="chip">${area}</span>` : '';
+    const img = document.createElement('img');
+    img.className = 'card-photo';
+    img.src = getPhotoSrc(r);
+    img.alt = r.name || '';
+    img.loading = 'lazy';
 
-    el.innerHTML = `
-      <img class="card-photo" src="${imgSrc}" alt="${r.name}" loading="lazy" />
-      <div class="card-scrim"></div>
-      <div class="card-body">
-        <div class="card-name">${r.name}</div>
-        <div class="card-chips">${rating}${price}${loc}</div>
-      </div>
-      <div class="stamp stamp-yum">YUM</div>
-      <div class="stamp stamp-nope">NOPE</div>
-    `;
+    const scrim = document.createElement('div');
+    scrim.className = 'card-scrim';
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = r.name || '';
+
+    const chips = document.createElement('div');
+    chips.className = 'card-chips';
+    if (r.rating)  chips.appendChild(chipEl('chip', `★ ${r.rating}`, 'chip-rating'));
+    if (r.price)   chips.appendChild(chipEl('chip', r.price, 'chip-price'));
+    if (r.cuisine) chips.appendChild(chipEl('chip', r.cuisine));
+    // Pull neighbourhood from address (second-to-last comma segment)
+    const parts = (r.address || '').split(',');
+    const area  = parts.length > 2 ? parts[parts.length - 3]?.trim() : '';
+    if (area) chips.appendChild(chipEl('chip', area));
+
+    body.append(name, chips);
+
+    const stampYum = document.createElement('div');
+    stampYum.className = 'stamp stamp-yum';
+    stampYum.textContent = 'YUM';
+
+    const stampNope = document.createElement('div');
+    stampNope.className = 'stamp stamp-nope';
+    stampNope.textContent = 'NOPE';
+
+    el.append(img, scrim, body, stampYum, stampNope);
     return el;
   }
 
   // ── Drag gesture ──────────────────────────────────────────────────────────
   function bindDrag(card) {
     if (!card) return;
-    let sx = 0, sy = 0, active = false, dx = 0;
+    let sx = 0, sy = 0, active = false, dx = 0, dy = 0, rafId = null;
 
     const px = e => e.touches ? e.touches[0].clientX : e.clientX;
     const py = e => e.touches ? e.touches[0].clientY : e.clientY;
+    const stampYum  = card.querySelector('.stamp-yum');
+    const stampNope = card.querySelector('.stamp-nope');
+
+    // Rapid touchmove events are coalesced into a single style write per
+    // frame instead of one per event — avoids layout thrashing on mobile.
+    function paint() {
+      rafId = null;
+      card.style.transform = `translateX(${dx}px) translateY(${dy}px) rotate(${dx * 0.075}deg)`;
+      stampYum.style.opacity  = dx > 0 ? Math.min(dx / 75, 1) : 0;
+      stampNope.style.opacity = dx < 0 ? Math.min(-dx / 75, 1) : 0;
+    }
 
     const onStart = e => { active = true; sx = px(e); sy = py(e); card.style.transition = 'none'; };
     const onMove  = e => {
       if (!active) return;
       dx = px(e) - sx;
-      const dy = (py(e) - sy) * 0.25;
-      card.style.transform = `translateX(${dx}px) translateY(${dy}px) rotate(${dx * 0.075}deg)`;
-      card.querySelector('.stamp-yum').style.opacity  = dx > 0 ? Math.min(dx / 75, 1) : 0;
-      card.querySelector('.stamp-nope').style.opacity = dx < 0 ? Math.min(-dx / 75, 1) : 0;
+      dy = (py(e) - sy) * 0.25;
+      if (rafId === null) rafId = requestAnimationFrame(paint);
     };
     const onEnd = () => {
       if (!active) return; active = false;
-      if (Math.abs(dx) > 88) {
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+      if (Math.abs(dx) > 88 && !swipeCommitInFlight) {
         ejectCard(card, dx > 0 ? 'right' : 'left');
       } else {
         card.style.transition = 'transform 0.42s cubic-bezier(0.34,1.56,0.64,1)';
         card.style.transform  = '';
-        card.querySelector('.stamp-yum').style.opacity  = 0;
-        card.querySelector('.stamp-nope').style.opacity = 0;
+        stampYum.style.opacity  = 0;
+        stampNope.style.opacity = 0;
       }
       dx = 0;
+      // Deliberately NOT cleaning up listeners here on a snap-back — the
+      // same card stays the front card and must remain draggable for a
+      // second attempt. Cleanup happens once, when the card is actually
+      // replaced (see renderStack()).
+    };
+
+    card._dragCleanup = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('mouseup',   onEnd);
+      document.removeEventListener('touchend',  onEnd);
     };
 
     card.addEventListener('mousedown',  onStart);
@@ -757,28 +1428,76 @@
     document.addEventListener('touchend',  onEnd);
   }
 
+  // Guards against a second swipe starting before the previous one's write
+  // has been confirmed — without this, two concurrent in-flight writes could
+  // resolve out of order and corrupt which restaurant idx points at on failure.
+  let swipeCommitInFlight = false;
+
+  function setSwipeControlsEnabled(enabled) {
+    document.querySelectorAll('#swipe-ui .act').forEach(btn => { btn.disabled = !enabled; });
+  }
+
   function ejectCard(card, dir) {
+    card._dragCleanup?.();
+    card.classList.add('ejecting'); // tells renderStack() to leave this element alone — it cleans itself up below
     const x = dir === 'right' ? innerWidth * 1.6 : -innerWidth * 1.6;
     card.style.transition = 'transform 0.32s ease-out';
     card.style.transform  = `translateX(${x}px) rotate(${dir === 'right' ? 18 : -18}deg)`;
-    setTimeout(() => commitSwipe(dir), 320);
+    card._ejectTimeoutId = setTimeout(() => card.remove(), 320);
+    // Fired immediately (not after the fly-off finishes) so the cards behind
+    // it start growing into place in parallel with this card leaving, rather
+    // than waiting for it to finish first — but only once the write actually
+    // succeeds; see commitSwipe().
+    commitSwipe(dir, card);
   }
 
   window.triggerSwipe = function(dir) {
-    const card = document.querySelector('#card-stack .front');
+    if (swipeCommitInFlight) return;
+    const card = document.querySelector('#card-stack .front:not(.ejecting)');
     if (!card) return;
     card.querySelector('.stamp-yum').style.opacity  = dir === 'right' ? 1 : 0;
     card.querySelector('.stamp-nope').style.opacity = dir === 'left'  ? 1 : 0;
     ejectCard(card, dir);
   };
 
-  function commitSwipe(dir) {
+  // Retries transient failures (e.g. a brief network drop) before giving up —
+  // a swipe must never silently vanish just because one write attempt failed.
+  async function writeSwipeWithRetry(rid, value, attempts = 3) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await set(ref(db, `groups/${groupCode}/swipes/${userId}/${rid}`), value);
+        return;
+      } catch (e) {
+        if (i === attempts - 1) throw e;
+        await new Promise(res => setTimeout(res, 400 * (i + 1)));
+      }
+    }
+  }
+
+  async function commitSwipe(dir, card) {
     const r = restaurants[idx];
     if (!r) return;
-    set(ref(db, `groups/${groupCode}/swipes/${userId}/${r.id}`),
-        dir === 'right' ? 'like' : 'dislike');
-    idx++;
-    renderStack();
+    swipeCommitInFlight = true;
+    setSwipeControlsEnabled(false);
+    try {
+      await writeSwipeWithRetry(r.id, dir === 'right' ? 'like' : 'dislike');
+      idx++;
+    } catch (e) {
+      // Write never went through — undo the visual eject so the same
+      // restaurant reappears as the front card instead of being skipped.
+      clearTimeout(card._ejectTimeoutId);
+      card.classList.remove('ejecting');
+      card.style.transition = 'none';
+      card.style.transform  = '';
+      const msg = navigator.onLine === false
+        ? "You're offline — your swipe wasn't saved. Reconnect and try again."
+        : "Your swipe couldn't be saved — please try again.";
+      alert(msg);
+    } finally {
+      swipeCommitInFlight = false;
+      setSwipeControlsEnabled(true);
+      renderStack();
+    }
   }
 
   function updateProgress() {
@@ -814,21 +1533,151 @@
   }
 
   function showMatch(r) {
-    document.getElementById('match-photo').src          = getPhotoSrc(r);
-    document.getElementById('match-name').textContent   = r.name;
-    document.getElementById('match-detail').textContent =
-      [r.rating && `\u2605 ${r.rating}`, r.price, r.address?.split(',')[0]].filter(Boolean).join(' · ');
-    document.getElementById('match-link').href = r.mapsUrl || '#';
+    document.getElementById('match-photo').src        = getPhotoSrc(r);
+    document.getElementById('match-name').textContent = r.name;
+    document.getElementById('match-link').href        = r.mapsUrl || '#';
+
+    // Chips row: rating, price, cuisine
+    const chipsEl = document.getElementById('match-chips');
+    chipsEl.textContent = '';
+    if (r.rating)  chipsEl.appendChild(chipEl('match-chip', `★ ${r.rating}`, 'match-chip-gold'));
+    if (r.price)   chipsEl.appendChild(chipEl('match-chip', r.price, 'match-chip-gold'));
+    if (r.cuisine) chipsEl.appendChild(chipEl('match-chip', r.cuisine));
+
+    // Full address (trim leading/trailing commas and spaces)
+    const addr = (r.address || '').replace(/^,\s*|,\s*$/g, '').trim();
+    document.getElementById('match-address').textContent = addr || '';
+
     nav('screen-match');
     launchConfetti();
   }
+
+  // ── Safe external link opening (Google Maps) ─────────────────────────────
+  // r.mapsUrl is server-supplied (from the Places API response or a
+  // constructed google.com fallback — see functions/index.js), but we still
+  // validate scheme+host before navigating anywhere, and route through
+  // Capacitor's Browser plugin in the native app rather than the WebView.
+  const SAFE_MAPS_HOSTS = new Set(['www.google.com', 'maps.google.com', 'goo.gl', 'maps.app.goo.gl']);
+  function isSafeMapsUrl(url) {
+    try {
+      const u = new URL(url, MUNCHMATCH_WEB_ORIGIN);
+      return u.protocol === 'https:' && SAFE_MAPS_HOSTS.has(u.hostname);
+    } catch { return false; }
+  }
+  document.getElementById('match-link').addEventListener('click', (e) => {
+    const url = e.currentTarget.getAttribute('href');
+    if (!isSafeMapsUrl(url)) { e.preventDefault(); return; }
+    if (isNativeApp) {
+      e.preventDefault();
+      window.Capacitor.Plugins.Browser.open({ url });
+    }
+    // else: default <a target="_blank"> behavior handles it on web/PWA
+  });
+
+  // ── Fortune cookie easter egg ──────────────────────────────────────────────
+  const FORTUNES = [
+    "He who swipes right on sushi shall never go to bed hungry.",
+    "A closed mouth gathers no ramen.",
+    "The journey of a thousand meals begins with a single reservation.",
+    "Man who orders last gets what everyone else didn't want.",
+    "Chopsticks reveal character. So does the Venmo request afterward.",
+    "Those who cannot decide shall inherit the drive-through.",
+    "An empty stomach has no ears, only opinions about Italian food.",
+    "Even the wisest group cannot agree on a dipping sauce.",
+    "Fortune favors the one who already ate a snack.",
+    "Do not judge a restaurant by its Yelp reviews. Judge it by its bread basket.",
+    "The noodle that bends does not break. The group that cannot agree, does.",
+    "He who hesitates gets the last slice of garlic bread.",
+    "One who orders for the table bears great responsibility.",
+    "Patience is a virtue. So is getting there before the kitchen closes.",
+    "The wise diner reads the specials board twice, orders the burger.",
+    "To know the menu is to know yourself.",
+    "Sharing is caring, unless it is the last dumpling.",
+    "The best meal is the one you didn't have to decide on alone.",
+  ];
+
+  let fortuneIdx       = -1;
+  let fortuneAnimating = false;
+
+  function showFortune(dir) {
+    if (fortuneAnimating) return;
+    fortuneAnimating = true;
+
+    const card = document.getElementById('fortune-card');
+    const text = document.getElementById('fortune-text');
+
+    fortuneIdx = (fortuneIdx + (dir === 'right' ? 1 : -1) + FORTUNES.length) % FORTUNES.length;
+    card.classList.add('fortune-mode');
+
+    const outClass = dir === 'right' ? 'swipe-out-left' : 'swipe-out-right';
+    text.classList.add(outClass);
+
+    setTimeout(() => {
+      text.textContent = FORTUNES[fortuneIdx];
+      text.classList.remove(outClass);
+      text.classList.add('swipe-in');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        text.classList.remove('swipe-in');
+        fortuneAnimating = false;
+      }));
+    }, 200);
+  }
+
+  // Bind swipe to the fortune card
+  (function bindFortuneSwipe() {
+    const card = document.getElementById('fortune-card');
+    let startX = 0, startY = 0, dragging = false;
+
+    function onStart(e) {
+      const pt = e.touches ? e.touches[0] : e;
+      startX = pt.clientX; startY = pt.clientY;
+      dragging = true;
+    }
+
+    function onMove(e) {
+      if (!dragging) return;
+      const pt  = e.touches ? e.touches[0] : e;
+      const dx  = pt.clientX - startX;
+      const dy  = pt.clientY - startY;
+      // Only take over if more horizontal than vertical
+      if (Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+        const rot = dx * 0.12;
+        const tx  = dx * 0.45;
+        card.style.transition = 'none';
+        card.style.transform  = `translateX(calc(-50% + ${tx}px)) rotate(${rot}deg)`;
+      }
+    }
+
+    function onEnd(e) {
+      if (!dragging) return;
+      dragging = false;
+      const pt = e.changedTouches ? e.changedTouches[0] : e;
+      const dx = pt.clientX - startX;
+
+      // Snap back with spring
+      card.style.transition = 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)';
+      card.style.transform  = 'translateX(-50%)';
+
+      if (Math.abs(dx) > 40) {
+        showFortune(dx > 0 ? 'right' : 'left');
+      }
+    }
+
+    card.addEventListener('mousedown',  onStart);
+    card.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('mousemove',  onMove);
+    window.addEventListener('touchmove',  onMove, { passive: false });
+    window.addEventListener('mouseup',    onEnd);
+    window.addEventListener('touchend',   onEnd);
+  })();
 
   // ── Confetti ──────────────────────────────────────────────────────────────
   function launchConfetti() {
     const cv = document.getElementById('confetti');
     const cx = cv.getContext('2d');
     cv.width = innerWidth; cv.height = innerHeight;
-    const COLORS = ['#FF3D2E','#F5A623','#27C97A','#4A90E2','#B06ADE','#EDE5D8'];
+    const COLORS = ['#F07020','#D4860A','#FFD580','#2A9D6F','#A8D8A8','#FFF3E0'];
     const pieces = Array.from({length: 140}, () => ({
       x: Math.random() * cv.width, y: -15 - Math.random() * 130,
       w: 6 + Math.random() * 9,    h: 9 + Math.random() * 7,
@@ -848,6 +1697,13 @@
       if (++f < 240) requestAnimationFrame(draw);
       else cx.clearRect(0, 0, cv.width, cv.height);
     })();
+  }
+
+  // ── PWA: service worker (app-shell caching only) ─────────────────────────
+  if (!isNativeApp && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+    });
   }
 </script>
 </body>

@@ -1,13 +1,38 @@
 {
   "rules": {
     "meta": {
-      ".read": true,
-      ".write": true
+      "partiesHelped": {
+        ".read": true,
+        ".write": false
+      }
     },
     "groups": {
       "$groupCode": {
         ".read": true,
-        ".write": true
+
+        "filters": {
+          ".write": false
+        },
+        "createdAt": {
+          ".write": false
+        },
+        "restaurants": {
+          ".write": false
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid && data.exists()",
+            ".validate": "newData.hasChild('joinedAt') && newData.child('joinedAt').isNumber() && (!data.exists() || newData.child('joinedAt').val() == data.child('joinedAt').val()) && (newData.child('status').val() == 'waiting' || newData.child('status').val() == 'swiping')"
+          }
+        },
+        "swipes": {
+          "$uid": {
+            "$rid": {
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.isString() && (newData.val() == 'like' || newData.val() == 'dislike')"
+            }
+          }
+        }
       }
     }
   }
