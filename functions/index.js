@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -213,25 +214,27 @@ async function fetchRestaurantResults(filters, key) {
   );
 }
 
-const RATE_LIMIT_MAX        = 5;
-const RATE_LIMIT_WINDOW_MS  = 10 * 60 * 1000;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 
-// Per-UID fixed-window throttle. Anonymous accounts can be recreated at
-// will, so this raises the bar against casual/scripted abuse but is not a
-// substitute for App Check — that's the next layer, planned before public
-// launch.
-async function checkRateLimit(db, uid) {
-  const rateRef = db.ref(`rateLimits/createGroup/${uid}`);
+// Per-UID, per-action fixed-window throttle. Anonymous accounts can be
+// recreated at will, so this raises the bar against casual/scripted abuse
+// but is not a substitute for App Check (that's the next layer, planned
+// before public launch). Separate actions get separate windows (stored at
+// rateLimits/{action}/{uid}, which is rules-locked to admin-only, so clients
+// cannot forge or reset their own window) so heavy legitimate use of one
+// callable never eats into another's quota.
+async function checkRateLimit(db, uid, action, max) {
+  const rateRef = db.ref(`rateLimits/${action}/${uid}`);
   const { committed } = await rateRef.transaction((current) => {
     const now = Date.now();
     if (!current || now - current.windowStart > RATE_LIMIT_WINDOW_MS) {
       return { windowStart: now, count: 1 };
     }
-    if (current.count >= RATE_LIMIT_MAX) return; // abort — over quota
+    if (current.count >= max) return; // abort, over quota
     return { windowStart: current.windowStart, count: current.count + 1 };
   });
   if (!committed) {
-    throw new HttpsError("resource-exhausted", "Too many groups created recently. Please wait a few minutes and try again.");
+    throw new HttpsError("resource-exhausted", "Too many requests. Please wait a few minutes and try again.");
   }
 }
 
@@ -291,7 +294,7 @@ exports.createGroup = onCall({ secrets: [PLACES_KEY] }, async (request) => {
   const openNow   = request.data?.openNow === true;
   const allowSwipeAgain = request.data?.allowSwipeAgain === true;
 
-  await checkRateLimit(db, uid);
+  await checkRateLimit(db, uid, "createGroup", 5);
   const groupCode = await reserveGroupCode(db, uid);
 
   let restaurants;
@@ -335,7 +338,16 @@ exports.joinGroup = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Invalid group code.");
   }
 
-  const db       = admin.database();
+  const db = admin.database();
+  // Without this, a scripted caller could hammer this callable indefinitely
+  // to rack up billed invocations or repeatedly attempt to join/fill groups.
+  // (Note: reading whether a given code exists happens client-side via a
+  // direct groups/$code read, which this rate limit does not cover. That
+  // path has no per-request throttle available at the rules level, which is
+  // exactly the kind of gap App Check is meant to close before public launch.)
+  // Generous limit here since legitimate users may retry a mistyped code or
+  // join more than one group per session.
+  await checkRateLimit(db, uid, "joinGroup", 20);
   const groupRef = db.ref(`groups/${groupCode}`);
 
   const sizeSnap  = await groupRef.child("filters/groupSize").get();
@@ -359,4 +371,46 @@ exports.joinGroup = onCall(async (request) => {
   }
 
   return { ok: true };
+});
+
+const GROUP_TTL_MS = 24 * 60 * 60 * 1000; // completed groups: 24h from creation
+const STUCK_TTL_MS = 10 * 60 * 1000;      // abandoned state:'loading' reservations: 10min
+
+// Runs hourly. Deletes any group older than GROUP_TTL_MS, plus any
+// state:'loading' reservation older than STUCK_TTL_MS. A createGroup call
+// that reserved a code but never finished (e.g. the function instance died
+// mid-execution before its own cleanup ran; a normal call completes in well
+// under a minute, so 10 minutes stuck in "loading" is unambiguously
+// abandoned, not slow). No individual group data (filters, restaurants,
+// members, swipes) is kept beyond this window.
+//
+// meta/partiesHelped is a separate, permanent counter incremented once at
+// creation time in createGroup. It is never touched here, so the aggregate
+// "how many groups have used this" stat survives independently of deleting
+// the underlying group data.
+exports.cleanupExpiredGroups = onSchedule("every 60 minutes", async () => {
+  const db   = admin.database();
+  const snap = await db.ref("groups").get();
+  if (!snap.exists()) return;
+
+  const now = Date.now();
+  const updates = {};
+  let expiredCount = 0, stuckCount = 0;
+
+  snap.forEach((child) => {
+    const group = child.val();
+    const age   = now - (group.createdAt || 0);
+    if (group.state === "loading" && age > STUCK_TTL_MS) {
+      updates[child.key] = null;
+      stuckCount++;
+    } else if (age > GROUP_TTL_MS) {
+      updates[child.key] = null;
+      expiredCount++;
+    }
+  });
+
+  if (Object.keys(updates).length > 0) {
+    await db.ref("groups").update(updates);
+  }
+  console.log(`cleanupExpiredGroups: removed ${expiredCount} expired groups, ${stuckCount} stuck reservations`);
 });
