@@ -750,6 +750,8 @@
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-functions.js";
   import { getAuth, signInAnonymously, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";
+  import { getAnalytics, logEvent }
+    from "https://www.gstatic.com/firebasejs/11.5.0/firebase-analytics.js";
 
   // ── Config ────────────────────────────────────────────────────────────────
   // No Google Places key here — it lives as a Firebase secret, never in the browser
@@ -761,12 +763,18 @@
     storageBucket:     "munchmatch-9e2fe.appspot.com",
     messagingSenderId: "560563095562",
     appId:             "1:560563095562:web:15e0fd055cbd75b1e8b7f3",
+    measurementId:     "G-9YT0LG7CEE",
   });
   const db              = getDatabase(app);
   const functions       = getFunctions(app);
   const createGroupFn    = httpsCallable(functions, 'createGroup');
   const registerMemberFn = httpsCallable(functions, 'joinGroup');
   const auth            = getAuth(app);
+  // Firebase Analytics can fail to initialize in some native WebView
+  // contexts (e.g. no measurement support). Never let that break the app.
+  let analytics = null;
+  try { analytics = getAnalytics(app); } catch (e) { console.warn('Analytics unavailable:', e); }
+  function track(name, params) { if (analytics) logEvent(analytics, name, params); }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   // Anonymous sign-in must resolve before any read/write that depends on userId.
@@ -1106,6 +1114,10 @@
 
       loadCounter(); // refresh badge — server already incremented it
 
+      // Categorical filter choices only, never the typed location text,
+      // never anything that could identify a specific person or place.
+      track('group_created', { mealtime: meal, group_size: size, allow_swipe_again: swipeAgainAllowed, used_current_location: geoLat != null });
+
       lobbyScreenId = 'screen-create';
       document.getElementById('created-code').textContent = groupCode;
       document.getElementById('create-code-card').classList.add('visible');
@@ -1115,6 +1127,7 @@
       startWaitingRoom(groupCode, size, 'cwr-label', 'cwr-pips');
     } catch(e) {
       console.error('Create failed:', e);
+      track('group_create_failed', { error_code: e.code || 'unknown' });
       groupCode = null;
       document.getElementById('create-loader').classList.remove('visible');
       document.getElementById('create-code-card').classList.remove('visible');
@@ -1175,12 +1188,15 @@
       btn.style.display = 'none';
       document.getElementById('join-go-btn').style.display = 'flex';
 
+      track('group_joined', { mealtime: data.filters?.mealtime || 'unknown' });
+
       // ── Waiting room: live member count ──────────────────────────────────
       lobbyScreenId = 'screen-join';
       const groupSize = data.filters?.groupSize || 0;
       document.getElementById('waiting-room').classList.add('visible');
       startWaitingRoom(code, groupSize, 'wr-label', 'wr-pips');
     } catch(e) {
+      track('group_join_failed', { error_code: e.code || 'unknown' });
       document.getElementById('join-error').textContent = `✕  ${e.message}`;
       document.getElementById('join-error').classList.add('visible');
       btn.textContent = 'Find Group';
@@ -1288,6 +1304,10 @@
     // Note: intentionally not touching stack.innerHTML here even when done —
     // a card mid-eject (see below) needs to keep flying off on its own.
     if (idx >= restaurants.length) {
+      // matchFound guard: a match can arrive from another member's swipe
+      // while this client is still finishing its own deck, so reaching the
+      // end here doesn't always mean no match happened.
+      if (!matchFound) track('swipes_exhausted_no_match', { swipes_completed: idx });
       document.getElementById('swipe-again-btn').style.display = allowSwipeAgain ? '' : 'none';
       setSwipeState('done');
       return;
@@ -1547,6 +1567,10 @@
     // Full address (trim leading/trailing commas and spaces)
     const addr = (r.address || '').replace(/^,\s*|,\s*$/g, '').trim();
     document.getElementById('match-address').textContent = addr || '';
+
+    // Cuisine only, never the restaurant name/address. No need for
+    // per-place identity in a funnel metric, and it keeps event cardinality low.
+    track('match_found', { cuisine: r.cuisine || 'unknown', swipes_completed: idx });
 
     nav('screen-match');
     launchConfetti();
