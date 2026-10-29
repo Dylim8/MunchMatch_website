@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#F07020</color>
+    <color name="colorPrimaryDark">#D4860A</color>
+    <color name="colorAccent">#F07020</color>
+    <color name="brandBackground">#FBF6EF</color>
+</resources>

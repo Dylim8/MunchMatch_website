@@ -10,6 +10,14 @@ firebase-debug.*.log*
 # Firebase cache
 .firebase/
 
+# JetBrains IDE workspace state (Android Studio) — local machine paths,
+# device manager state, etc. Matches at any depth, so this also covers
+# android/.idea/ without needing a separate entry there.
+.idea/
+
+# macOS Finder metadata
+.DS_Store
+
 # Firebase config
 
 # Uncomment this if you'd like others to create their own Firebase project.
@@ -46,6 +54,9 @@ build/Release
 
 # Dependency directories
 node_modules/
+
+# Capacitor build output (generated from public/ via `npm run build`)
+dist/
 
 # Optional npm cache directory
 .npm

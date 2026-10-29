@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_YOUR_TEAM_ID.com.munchmatch.app"],
+        "components": [
+          { "/": "/*", "comment": "MunchMatch join links match any path on this host" }
+        ]
+      }
+    ]
+  }
+}
