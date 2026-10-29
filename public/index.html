@@ -480,7 +480,7 @@
 <button id="theme-toggle-btn" onclick="cycleTheme()" aria-label="Change theme">Light</button>
 
 <!-- ── HOME ── -->
-<div id="screen-home" class="screen active">
+<div role="region" aria-label="MunchMatch" id="screen-home" class="screen active">
   <div class="home-glow"></div>
   <div class="wordmark">Munch<em>Match</em></div>
   <p class="home-sub">Stop arguing about where to eat.</p>
@@ -508,7 +508,7 @@
 </div>
 
 <!-- ── CREATE ── -->
-<div id="screen-create" class="screen">
+<div role="region" aria-label="Create group" id="screen-create" class="screen" inert aria-hidden="true">
   <div class="screen-header">
     <button class="back-btn" onclick="nav('screen-home')">←</button>
     <span class="screen-title">Create Group</span>
@@ -638,7 +638,7 @@
 </div>
 
 <!-- ── JOIN ── -->
-<div id="screen-join" class="screen">
+<div role="region" aria-label="Join group" id="screen-join" class="screen" inert aria-hidden="true">
   <div class="screen-header">
     <button class="back-btn" onclick="nav('screen-home')">←</button>
     <span class="screen-title">Join Group</span>
@@ -692,7 +692,7 @@
 </div>
 
 <!-- ── SWIPE ── -->
-<div id="screen-swipe" class="screen">
+<div role="region" aria-label="Restaurant choices" id="screen-swipe" class="screen" inert aria-hidden="true">
   <div class="swipe-topbar">
     <span class="swipe-meta" id="swipe-code-lbl"></span>
     <span class="swipe-logo"><em>Munch</em>Match</span>
@@ -720,7 +720,7 @@
 </div>
 
 <!-- ── MATCH ── -->
-<div id="screen-match" class="screen">
+<div role="region" aria-label="Shared match" id="screen-match" class="screen" inert aria-hidden="true">
   <div class="match-glow"></div>
   <div class="match-content">
     <div class="match-icon">&#10003;</div>
@@ -742,6 +742,7 @@
 </div>
 
 <script type="module">
+  import { nav } from './js/nav.js';
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
   import { getDatabase, ref, get, set, child, onValue }
@@ -940,16 +941,7 @@
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  window.nav = function(id) {
-    document.querySelectorAll('.screen.active').forEach(s => {
-      s.classList.remove('active');
-      s.classList.add('leaving');
-      setTimeout(() => s.classList.remove('leaving'), 300);
-    });
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => document.getElementById(id).classList.add('active'))
-    );
-  };
+  window.nav = nav;
 
   // ── Auto-fill join code from URL param (?code=XXXXXX) ────────────────────
   (function checkUrlCode() {
